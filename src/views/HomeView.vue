@@ -43,7 +43,7 @@
 				v-for="image in this.imageData"
 				class="sider--entry"
 				:key="image.index"
-				:class="{ active: currentImage.index == this.index }"
+				:class="{ active: image.index == this.index }"
 				@click="setImageIndex(image.index)"
 			>
 				{{ image.holder }}
@@ -200,7 +200,7 @@
 	}
 
 	.active {
-		color: var(--cream);
+		color: var(--blue);
 
 		@media (max-width: 37.5em) {
 			border: 1px solid var(--blue);
