@@ -15,13 +15,17 @@
 			</div>
 			<figure>
 				<div class="img-wrap">
-					<transition name="fade" mode="out-in">
-						<img :src="currentImage.link" alt="" class="full-image" />
-					</transition>
+					<img
+						:src="currentImage.link"
+						alt=""
+						:key="currentImage.index"
+						class="full-image"
+					/>
+
+					<figcaption class="home__center--desc">
+						{{ currentImage.desc }}
+					</figcaption>
 				</div>
-				<figcaption class="home__center--desc">
-					{{ currentImage.desc }}
-				</figcaption>
 			</figure>
 			<div class="control" @click="move('forward')">
 				<svg
@@ -42,6 +46,17 @@
 			<div
 				v-for="image in this.imageData"
 				class="sider--entry"
+				:key="image.index"
+				:class="{ active: image.index == this.index }"
+				@click="setImageIndex(image.index)"
+			>
+				{{ image.holder }}
+			</div>
+		</div>
+		<div class="mobile-sider">
+			<div
+				v-for="image in this.imageData"
+				class="mobile-sider--entry"
 				:key="image.index"
 				:class="{ active: image.index == this.index }"
 				@click="setImageIndex(image.index)"
@@ -90,7 +105,7 @@
 </script>
 
 <style lang="scss">
-	@import '@/assets/css/animations.scss';
+	@import '@/assets/animations.scss';
 
 	.home {
 		display: flex;
@@ -118,6 +133,7 @@
 
 			@media (max-width: 37.5em) {
 				margin-bottom: 0;
+				height: 70%;
 			}
 
 			&--desc {
@@ -139,9 +155,13 @@
 
 			& .full-image {
 				display: block;
-				max-width: 90%;
+				width: 90%;
+				// min-width: 20rem;
 				margin: 0 auto;
-				max-height: calc(100vh - 15rem);
+				// max-height: calc(100vh - 15rem);
+
+				min-height: 15rem;
+				// max-height: 90%;
 				height: auto;
 				line-height: 0;
 				border-radius: 5px;
@@ -154,15 +174,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 5px;
-		top: 3%;
-		right: 8%;
+		top: 50px;
+		right: 50px;
 		text-align: left;
 
 		@media (max-width: 37.5em) {
-			position: static;
-			display: flex;
-			justify-content: space-between;
-			text-align: center;
+			display: none;
 		}
 
 		&--entry {
@@ -199,11 +216,25 @@
 		}
 	}
 
+	.mobile-sider {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-around;
+		gap: 10px;
+		width: 90%;
+		display:none;
+
+		@media (min-width: 37.5em) {
+			display: none;
+		}
+	}
+
 	.active {
 		color: var(--blue);
 
 		@media (max-width: 37.5em) {
-			border: 1px solid var(--blue);
+			color: var(--blue);
 		}
 	}
 

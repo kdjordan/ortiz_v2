@@ -25,7 +25,7 @@
 	export default {
 		data() {
 			return {
-				loading: true,
+				loading: false,
 			};
 		},
 		methods: {
@@ -43,7 +43,7 @@
 </script>
 
 <style lang="scss">
-	@import '@/assets/css/animations.scss';
+	@import '@/assets/animations.scss';
 
 	.main-wrapper {
 		display: flex;

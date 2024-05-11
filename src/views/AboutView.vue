@@ -42,6 +42,7 @@ export default {
   & div {
     text-align: left;
     margin: 1rem 0;
+    min-height: 20%;
 
     & p {
       margin: .7rem 0;

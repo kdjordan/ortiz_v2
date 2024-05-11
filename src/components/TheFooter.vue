@@ -13,7 +13,7 @@
       </div>
       <div class="bottom__right">
           <div>
-              &#169; 2023 Ortiz Metals 
+              &#169; 2024 Ortiz Metals 
           </div>
           <div>
               <a href="https://www.kevinjordan.dev" target="_blank" rel="noopener noreferrer nofollow">BUILT BY : Kevin Jordan</a>
@@ -32,8 +32,8 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 0 1rem;
-  padding-top: .4rem;
-  padding-bottom: .4rem;
+  padding-top: .7rem;
+  padding-bottom: .7rem;
   font-family: var(--font-antonio);
   letter-spacing: 1px;
 
