@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Antonio:wght@500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poiret+One&display=swap');
+
+*,
+*::after,
+*::before {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --font-antonio: 'Antonio', sans-serif;
+  --font-zen: 'Zen Dots', cursive;
+  --font-roboto: 'Roboto', sans-serif;
+
+  /* Color Theme Swatches in HSLA */
+  --blue: hsla(300, 11%, 31%, 1);
+  --cream: hsla(28, 91%, 91%, 1);
+  --hot-orange: hsla(22, 88%, 56%, 1);
+  --orange: hsla(16, 68%, 53%, 1);
+  --brown: hsla(11, 50%, 36%, 1);
+  --black: hsla(21, 100%, 4%, 0.5);
+}
+
+html,
+body {
+  min-height: 100vh;
+  background-color: var(--orange);
+  font-family: 'Poiret One', cursive;
+  color: var(--cream);
+}
+
+
+#app {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: center;
+  color: var(--cream);
+}
+
+a,
+.link {
+  font-family: var(--font-antonio);
+  color: var(--cream);
+  padding-bottom: 3px;
+  border-bottom: 1px solid transparent;
+  text-decoration: none;
+  transition: all 0.4s ease;
+  text-transform: uppercase;
+  margin: 0 1rem;
+
+  &:hover {
+    filter: opacity(50%);
+    border-bottom: 1px solid var(--cream);
+  }
+}
