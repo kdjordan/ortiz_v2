@@ -26,7 +26,7 @@ export default {
 <style scoped lang="scss">
 
 .about {
-  font-family: var(--font-antonio);
+  font-family: var(--font-roboto);
   letter-spacing: 1px;
   font-size: 1.2rem;
   display: flex;
