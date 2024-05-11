@@ -45,7 +45,7 @@
 			width: 50%;
 
 			@media (max-width: 500px) {
-				width: 90%;
+				width: 70%;
 			}
 
 			& p {
