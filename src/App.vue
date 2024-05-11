@@ -7,7 +7,7 @@
 			<TheHeader />
 			<TheLogo />
 			<router-view v-slot="{ Component }">
-				<transition name="fade">
+				<transition name="fade" mode="out-in">
 					<component :is="Component" />
 				</transition>
 			</router-view>
@@ -17,10 +17,10 @@
 </template>
 
 <script>
-	import TheFooter from '@/components/TheFooter';
-	import TheHeader from '@/components/TheHeader';
-	import TheLoading from '@/components/TheLoading';
-	import TheLogo from '@/components/TheLogo'
+	import TheFooter from '@/components/TheFooter.vue';
+	import TheHeader from '@/components/TheHeader.vue';
+	import TheLoading from '@/components/TheLoading.vue';
+	import TheLogo from '@/components/TheLogo.vue'
 
 	export default {
 		data() {
