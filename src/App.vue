@@ -6,11 +6,7 @@
 		<div class="main-wrapper">
 			<TheHeader />
 			<TheLogo />
-			<router-view v-slot="{ Component }">
-				<transition name="fade" mode="out-in">
-					<component :is="Component" />
-				</transition>
-			</router-view>
+			<RouterView />
 			<TheFooter />
 		</div>
 	</div>
@@ -20,7 +16,7 @@
 	import TheFooter from '@/components/TheFooter.vue';
 	import TheHeader from '@/components/TheHeader.vue';
 	import TheLoading from '@/components/TheLoading.vue';
-	import TheLogo from '@/components/TheLogo.vue'
+	import TheLogo from '@/components/TheLogo.vue';
 
 	export default {
 		data() {
@@ -43,12 +39,11 @@
 </script>
 
 <style lang="scss">
-	@import '@/assets/animations.scss';
-
 	.main-wrapper {
 		display: flex;
 		flex-direction: column;
 		height: 100vh;
 		width: 100vw;
 	}
+
 </style>

@@ -105,7 +105,6 @@
 </script>
 
 <style lang="scss">
-	@import '@/assets/animations.scss';
 
 	.home {
 		display: flex;
