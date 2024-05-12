@@ -72,7 +72,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 60%;
+		width: 25%;
 		z-index: 9;
 	}
 </style>
