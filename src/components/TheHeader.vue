@@ -10,7 +10,7 @@
 
 <style>
 .header {
-  padding: 1rem 0;
+  padding: 1rem 0 0 0;
   background-color: var(--orange);
   display: flex;
   flex-direction:  column;

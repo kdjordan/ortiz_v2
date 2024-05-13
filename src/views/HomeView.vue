@@ -13,20 +13,18 @@
 					<rect x="6.5" y="13" width="15" height="2" />
 				</svg>
 			</div>
-			<figure>
-				<div class="img-wrap">
-					<img
-						:src="currentImage.link"
-						alt=""
-						:key="currentImage.index"
-						class="full-image"
-					/>
+			<div class="img-wrap">
+				<img
+					:src="currentImage.link"
+					alt=""
+					:key="currentImage.index"
+					class="full-image"
+				/>
 
-					<figcaption class="home__center--desc">
-						{{ currentImage.desc }}
-					</figcaption>
+				<div class="home__center--desc">
+					{{ currentImage.desc }}
 				</div>
-			</figure>
+			</div>
 			<div class="control" @click="move('forward')">
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -148,27 +146,20 @@
 			}
 		}
 
-		figure {
-			& .img-wrap {
-				display: block;
-				height: auto;
-				max-width: 500px;
-			}
-
-			& .full-image {
-				display: block;
-				width: 90%;
-				// min-width: 20rem;
-				margin: 0 auto;
-				// max-height: calc(100vh - 15rem);
-
-				min-height: 15rem;
-				// max-height: 90%;
-				height: auto;
-				line-height: 0;
-				border-radius: 5px;
-				box-shadow: 0px 3px 15px rgba(0, 0, 0, 0.2);
-			}
+		& .img-wrap {
+			display: block;
+			max-width: 450px;
+			max-height: 450px;
+		}
+		
+		& .full-image {
+			display: block;
+			width: 100%;
+			object-fit: contain;
+			margin: 0 auto;
+			border-radius: 5px;
+			box-shadow: 0px 3px 15px rgba(0, 0, 0, 0.2);
+			height: auto;
 		}
 	}
 	.sider {
