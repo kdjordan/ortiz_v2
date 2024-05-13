@@ -152,6 +152,7 @@
 			& .img-wrap {
 				display: block;
 				height: auto;
+				max-width: 500px;
 			}
 
 			& .full-image {
@@ -179,7 +180,7 @@
 		right: 50px;
 		text-align: left;
 
-		@media (max-width: 37.5em) {
+		@media (max-width: 700px) {
 			display: none;
 		}
 
@@ -208,7 +209,7 @@
 		transition: all 0.4s ease;
 		margin: 0 1rem;
 
-		@media (max-width: 37.5em) {
+		@media (max-width: 700px) {
 			min-width: 30px;
 		}
 
@@ -226,7 +227,7 @@
 		width: 90%;
 		display: none;
 
-		@media (min-width: 37.5em) {
+		@media (min-width: 700px) {
 			display: none;
 		}
 	}

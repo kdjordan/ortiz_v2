@@ -29,7 +29,7 @@
 		margin-top: 1rem;
 
 		@media (max-width: 37.5em) {
-			width: 3rem;
+			width: 2rem;
 		}
 	}
 </style>
