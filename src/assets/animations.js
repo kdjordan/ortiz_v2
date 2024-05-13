@@ -1,7 +1,7 @@
 import { gsap } from 'gsap'
 
 
-export default function animatePage(pageTransition) {
+export function animatePage(pageTransition) {
   gsap.to(pageTransition, {
     top:0,
     opacity: 1,
@@ -16,3 +16,4 @@ export default function animatePage(pageTransition) {
     },
   });
 }
+

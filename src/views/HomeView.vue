@@ -53,22 +53,12 @@
 				{{ image.holder }}
 			</div>
 		</div>
-		<div class="mobile-sider">
-			<div
-				v-for="image in this.imageData"
-				class="mobile-sider--entry"
-				:key="image.index"
-				:class="{ active: image.index == this.index }"
-				@click="setImageIndex(image.index)"
-			>
-				{{ image.holder }}
-			</div>
-		</div>
 	</div>
 </template>
 
 <script>
 	import { imageData } from '@/imageData.js';
+	import gsap from 'gsap';
 
 	export default {
 		data() {
@@ -95,6 +85,20 @@
 			setImageIndex(index) {
 				this.index = index;
 			},
+			doAnimation() {
+				console.log('this ', this.isFirstRun);
+
+				let tl = gsap.timeline();
+				tl.set('.sider, .home__center', { opacity: 0 });
+				tl.to('.sider', { opacity: 1, delay: 5 }).to(
+					'.home__center',
+					{ opacity: 1 }
+				);
+				this.isFirstRun = false;
+			},
+			doNotAnimate() {
+				tl.set('.sider, .home__center', { opacity: 1 });
+			},
 		},
 		computed: {
 			currentImage() {
@@ -105,14 +109,12 @@
 </script>
 
 <style lang="scss">
-
 	.home {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		font-family: var(--font-antonio);
 		letter-spacing: 1px;
-		z-index: 2;
 		height: 100%;
 		margin-bottom: auto;
 
@@ -222,7 +224,7 @@
 		justify-content: space-around;
 		gap: 10px;
 		width: 90%;
-		display:none;
+		display: none;
 
 		@media (min-width: 37.5em) {
 			display: none;
@@ -235,21 +237,5 @@
 		@media (max-width: 37.5em) {
 			color: var(--blue);
 		}
-	}
-
-	.fade-enter-active,
-	.fade-leave-active {
-		transition: all 0.8s ease;
-		overflow: hidden;
-		visibility: visible;
-		opacity: 1;
-		position: relative;
-		top: 0;
-		left: 0;
-	}
-	.fade-enter,
-	.fade-leave-to {
-		opacity: 0;
-		visibility: hidden;
 	}
 </style>

@@ -1,41 +1,18 @@
 <template>
-	<div v-if="loading">
-		<TheLoading @handleLoading="setLoadingFalse" />
-	</div>
-	<div v-else>
-		<div class="main-wrapper">
-			<TheHeader />
-			<TheLogo />
-			<RouterView />
-			<TheFooter />
-		</div>
+	<TheLoading />
+	<div class="main-wrapper">
+		<TheHeader />
+		<TheLogo />
+		<RouterView />
+		<TheFooter />
 	</div>
 </template>
 
-<script>
+<script setup>
 	import TheFooter from '@/components/TheFooter.vue';
 	import TheHeader from '@/components/TheHeader.vue';
 	import TheLoading from '@/components/TheLoading.vue';
 	import TheLogo from '@/components/TheLogo.vue';
-
-	export default {
-		data() {
-			return {
-				loading: true,
-			};
-		},
-		methods: {
-			setLoadingFalse() {
-				this.loading = false;
-			},
-		},
-		components: {
-			TheHeader,
-			TheLogo,
-			TheLoading,
-			TheFooter,
-		},
-	};
 </script>
 
 <style lang="scss">
@@ -45,5 +22,4 @@
 		height: 100vh;
 		width: 100vw;
 	}
-
 </style>
