@@ -22,14 +22,41 @@
 		<div v-else class="admin__works">
 			<div class="admin__bar">
 				<h1>Works ({{ works.length }})</h1>
-				<button type="button" @click="logout">Log out</button>
+				<div class="admin__bar-actions">
+					<button type="button" :disabled="publishing" @click="publish">
+						{{ publishing ? 'Publishing…' : 'Publish' }}
+					</button>
+					<button type="button" @click="logout">Log out</button>
+				</div>
 			</div>
+			<p v-if="publishMsg" class="admin__notice">{{ publishMsg }}</p>
 			<ul>
 				<li v-for="work in works" :key="work.id">
 					<span class="admin__order">{{ work.order }}</span>
-					<span class="admin__holder">{{ work.caption.holder }}</span>
-					<span class="admin__desc">{{ work.caption.desc }}</span>
-					<span class="admin__year">{{ work.caption.year }}</span>
+					<input
+						v-model="work.caption.holder"
+						class="admin__field admin__holder"
+						aria-label="Holder"
+					/>
+					<input
+						v-model="work.caption.desc"
+						class="admin__field admin__desc"
+						aria-label="Description"
+					/>
+					<input
+						v-model.number="work.caption.year"
+						type="number"
+						class="admin__field admin__year"
+						aria-label="Year"
+					/>
+					<button
+						type="button"
+						class="admin__save"
+						:disabled="savingId === work.id"
+						@click="saveCaption(work)"
+					>
+						{{ savingId === work.id ? 'Saving…' : 'Save' }}
+					</button>
 				</li>
 			</ul>
 		</div>
@@ -44,6 +71,9 @@
 	const password = ref('');
 	const error = ref('');
 	const busy = ref(false);
+	const savingId = ref('');
+	const publishing = ref(false);
+	const publishMsg = ref('');
 
 	// Fetch the works list; returns true if the session is valid (200), false on 401.
 	async function loadWorks() {
@@ -79,6 +109,50 @@
 			error.value = 'Could not reach the server.';
 		} finally {
 			busy.value = false;
+		}
+	}
+
+	// Commit one work's edited caption to the cms-draft branch.
+	async function saveCaption(work) {
+		savingId.value = work.id;
+		publishMsg.value = '';
+		try {
+			const res = await fetch(`/api/works/${work.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'same-origin',
+				body: JSON.stringify(work.caption),
+			});
+			if (!res.ok) {
+				publishMsg.value = `Could not save “${work.caption.holder}”.`;
+				return;
+			}
+			const body = await res.json();
+			work.caption = body.work.caption;
+			publishMsg.value = `Saved “${work.caption.holder}” to draft.`;
+		} catch {
+			publishMsg.value = 'Could not reach the server.';
+		} finally {
+			savingId.value = '';
+		}
+	}
+
+	// Merge all staged draft edits into the live site.
+	async function publish() {
+		publishing.value = true;
+		publishMsg.value = '';
+		try {
+			const res = await fetch('/api/publish', {
+				method: 'POST',
+				credentials: 'same-origin',
+			});
+			publishMsg.value = res.ok
+				? 'Published! The site is updating and will be live shortly.'
+				: 'Publish failed. Please try again.';
+		} catch {
+			publishMsg.value = 'Could not reach the server.';
+		} finally {
+			publishing.value = false;
 		}
 	}
 
@@ -159,6 +233,16 @@
 			margin-bottom: 1.5rem;
 		}
 
+		&__bar-actions {
+			display: flex;
+			gap: 0.75rem;
+		}
+
+		&__notice {
+			color: var(--ember);
+			margin-bottom: 1rem;
+		}
+
 		&__works ul {
 			list-style: none;
 			padding: 0;
@@ -167,11 +251,20 @@
 
 		&__works li {
 			display: grid;
-			grid-template-columns: 2rem 8rem 1fr auto;
+			grid-template-columns: 2rem 8rem 1fr 5rem auto;
 			gap: 0.75rem;
-			align-items: baseline;
+			align-items: center;
 			padding: 0.6rem 0;
 			border-top: 1px solid var(--line);
+		}
+
+		&__field {
+			padding: 0.4rem 0.5rem;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: transparent;
+			color: inherit;
+			min-width: 0;
 		}
 
 		&__order {
@@ -180,6 +273,10 @@
 
 		&__year {
 			opacity: 0.7;
+		}
+
+		&__save {
+			padding: 0.4rem 0.75rem;
 		}
 	}
 </style>

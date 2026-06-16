@@ -1,9 +1,9 @@
-import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { scryptSync, timingSafeEqual } from 'node:crypto'
 import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
+import { createRepo, WorkNotFoundError } from './repo.js'
 
 const SESSION_COOKIE = 'session'
 const SESSION_VALUE = 'ok'
@@ -18,16 +18,33 @@ function verifyPassword(password, storedHash) {
   return expected.length === actual.length && timingSafeEqual(expected, actual)
 }
 
-// Default gallery source: the #2 contract file at the repo root (../src/gallery.json).
-const DEFAULT_GALLERY_PATH = fileURLToPath(new URL('../src/gallery.json', import.meta.url))
+// Default ephemeral working clone (gitignored; re-cloned on each restart).
+const DEFAULT_WORK_DIR = fileURLToPath(new URL('./work', import.meta.url))
+
+// Caption fields the CMS may edit. Returns an error string, or null if valid.
+function validateCaption(body) {
+  if (!body || typeof body !== 'object') return 'invalid caption'
+  const { holder, desc, year } = body
+  if (typeof holder !== 'string' || holder.trim() === '') return 'holder is required'
+  if (typeof desc !== 'string' || desc.trim() === '') return 'desc is required'
+  if (typeof year !== 'number' || !Number.isFinite(year)) return 'year must be a number'
+  return null
+}
 
 export function buildApp(opts = {}) {
   const cookieSecret = opts.cookieSecret ?? process.env.COOKIE_SECRET
   const passwordHash = opts.passwordHash ?? process.env.ADMIN_PASSWORD_HASH
-  const galleryPath = opts.galleryPath ?? DEFAULT_GALLERY_PATH
   const loginRateLimit = opts.rateLimit ?? { max: 10, timeWindow: '1 minute' }
+  const remoteUrl = opts.remoteUrl ?? process.env.GIT_REMOTE_URL
+  const workDir = opts.workDir ?? DEFAULT_WORK_DIR
+  const repo = opts.repo ?? createRepo({ remoteUrl, workDir })
 
   const app = Fastify({ logger: false })
+
+  // Clone the remote and ensure cms-draft exists before the first request.
+  app.addHook('onReady', async () => {
+    await repo.init()
+  })
 
   app.register(cookie, { secret: cookieSecret })
   // Registered globally but opted in per-route, so only login is throttled.
@@ -66,8 +83,30 @@ export function buildApp(opts = {}) {
     })
 
     routes.get('/api/works', { preHandler: requireSession }, async () => {
-      const gallery = JSON.parse(await readFile(galleryPath, 'utf8'))
-      return { works: gallery.works }
+      return { works: await repo.readWorks() }
+    })
+
+    // Edit a work's caption -> commit to cms-draft (no deploy).
+    routes.patch('/api/works/:id', { preHandler: requireSession }, async (request, reply) => {
+      const invalid = validateCaption(request.body)
+      if (invalid) return reply.code(400).send({ error: invalid })
+
+      const { holder, desc, year } = request.body
+      try {
+        const work = await repo.updateCaption(request.params.id, { holder, desc, year })
+        return { work }
+      } catch (err) {
+        if (err instanceof WorkNotFoundError) {
+          return reply.code(404).send({ error: 'work not found' })
+        }
+        throw err
+      }
+    })
+
+    // Promote the draft: merge cms-draft -> main (triggers deploy in prod).
+    routes.post('/api/publish', { preHandler: requireSession }, async () => {
+      await repo.publish()
+      return { ok: true }
     })
   })
 

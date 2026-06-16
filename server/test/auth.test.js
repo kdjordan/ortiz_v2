@@ -10,7 +10,7 @@ afterEach(async () => {
 
 describe('works listing auth gating', () => {
   it('rejects the works list without a session', async () => {
-    app = makeApp()
+    app = await makeApp()
     const res = await app.inject({ method: 'GET', url: '/api/works' })
     expect(res.statusCode).toBe(401)
   })
@@ -18,7 +18,7 @@ describe('works listing auth gating', () => {
 
 describe('login', () => {
   it('sets an httpOnly session cookie on the correct password', async () => {
-    app = makeApp()
+    app = await makeApp()
     const res = await app.inject({
       method: 'POST',
       url: '/api/login',
@@ -34,7 +34,7 @@ describe('login', () => {
   })
 
   it('rejects the wrong password with 401 and no cookie', async () => {
-    app = makeApp()
+    app = await makeApp()
     const res = await app.inject({
       method: 'POST',
       url: '/api/login',
@@ -47,7 +47,7 @@ describe('login', () => {
 
 describe('works listing with a session', () => {
   it('returns the gallery works once authenticated', async () => {
-    app = makeApp()
+    app = await makeApp()
     const login = await app.inject({
       method: 'POST',
       url: '/api/login',
@@ -67,7 +67,7 @@ describe('works listing with a session', () => {
 
 describe('logout', () => {
   it('clears the session cookie', async () => {
-    app = makeApp()
+    app = await makeApp()
     const res = await app.inject({ method: 'POST', url: '/api/logout' })
     expect(res.statusCode).toBe(200)
     const setCookie = res.headers['set-cookie']
@@ -80,7 +80,7 @@ describe('logout', () => {
 
 describe('login rate limiting', () => {
   it('returns 429 after too many attempts', async () => {
-    app = makeApp({ rateLimit: { max: 2, timeWindow: '1 minute' } })
+    app = await makeApp({ rateLimit: { max: 2, timeWindow: '1 minute' } })
     const attempt = () =>
       app.inject({
         method: 'POST',
