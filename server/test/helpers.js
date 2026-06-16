@@ -3,8 +3,12 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { simpleGit } from 'simple-git'
 import { buildApp } from '../app.js'
+
+const execFileP = promisify(execFile)
 
 export const TEST_PASSWORD = 'correct-horse-battery-staple'
 
@@ -59,6 +63,54 @@ async function seedBareRepo() {
 // for "what was actually committed to cms-draft / main".
 export function showFile(bareDir, ref, path) {
   return simpleGit(bareDir).show([`${ref}:${path}`])
+}
+
+// Binary-safe variant of showFile: returns the committed blob as a Buffer (git
+// show string-decodes and corrupts binary), so committed image variants can be
+// re-read with sharp.
+export async function showBuffer(bareDir, ref, path) {
+  const { stdout } = await execFileP(
+    'git',
+    ['-C', bareDir, 'cat-file', 'blob', `${ref}:${path}`],
+    { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 },
+  )
+  return stdout
+}
+
+// The list of tracked file paths at a ref — the seam for "exactly which files
+// the commit contains".
+export async function listFiles(bareDir, ref) {
+  const out = await simpleGit(bareDir).raw(['ls-tree', '-r', '--name-only', ref])
+  return out.split('\n').filter(Boolean)
+}
+
+// Builds a multipart/form-data body (text fields + one file part) as a Buffer,
+// plus the matching content-type header, for Fastify inject() uploads.
+export function multipartBody({ fields = {}, file }) {
+  const boundary = '----ortizcmstestboundary'
+  const chunks = []
+  for (const [name, value] of Object.entries(fields)) {
+    chunks.push(
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+      ),
+    )
+  }
+  if (file) {
+    chunks.push(
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${file.field ?? 'file'}";` +
+          ` filename="${file.filename ?? 'upload'}"\r\nContent-Type: ${file.contentType}\r\n\r\n`,
+      ),
+    )
+    chunks.push(file.buffer)
+    chunks.push(Buffer.from('\r\n'))
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`))
+  return {
+    payload: Buffer.concat(chunks),
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+  }
 }
 
 // Builds an app wired to a fresh seeded bare repo. Returns the app with a

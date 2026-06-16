@@ -1,10 +1,15 @@
-import { readFile, writeFile, rm } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { simpleGit } from 'simple-git'
 
 const DRAFT_BRANCH = 'cms-draft'
 const MAIN_BRANCH = 'main'
 const GALLERY_REL = 'src/gallery.json'
+const SOURCE_DIR = 'source-images'
+const OPT_DIR = join('public', 'images', 'opt')
+
+const IDENTITY_EDIT = { brightness: 1, contrast: 1, crop: null, tilt: 0 }
 
 // Thrown by updateCaption when the target work id isn't in the gallery; the HTTP
 // layer maps it to a 404.
@@ -88,6 +93,48 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
+  // Add a new work: write the pristine original + all responsive variants,
+  // append a gallery record (identity edit params), then commit + push the whole
+  // set to cms-draft in one commit. `ext` is the original's file extension;
+  // `variants` are the {width, ext, buffer} set from images.processImage.
+  function addWork({ ext, originalBuffer, variants, caption }) {
+    return serialize(async () => {
+      const gallery = await readGallery()
+
+      // Filename-safe, collision-free id (randomUUID is hex+hyphens only).
+      let id
+      do {
+        id = randomUUID()
+      } while (gallery.works.some((w) => w.id === id))
+
+      const originalRel = `${SOURCE_DIR}/${id}.${ext}`
+      await mkdir(join(workDir, SOURCE_DIR), { recursive: true })
+      await writeFile(join(workDir, originalRel), originalBuffer)
+
+      await mkdir(join(workDir, OPT_DIR), { recursive: true })
+      for (const v of variants) {
+        await writeFile(join(workDir, OPT_DIR, `${id}-${v.width}.${v.ext}`), v.buffer)
+      }
+
+      const maxOrder = gallery.works.reduce((m, w) => Math.max(m, w.order), -1)
+      const work = {
+        id,
+        order: maxOrder + 1,
+        caption,
+        base: `/images/opt/${id}`,
+        original: originalRel,
+        edit: { ...IDENTITY_EDIT },
+      }
+      gallery.works.push(work)
+      await writeFile(galleryFile(), `${JSON.stringify(gallery, null, 2)}\n`)
+
+      await git.add('.')
+      await git.commit(`CMS: add work ${id}`)
+      await git.push(['origin', DRAFT_BRANCH])
+      return work
+    })
+  }
+
   // Promote draft to live: rebase draft onto the latest main (safety against
   // out-of-band dev commits), then fast-forward main to draft and push.
   function publish() {
@@ -109,5 +156,5 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
-  return { init, readWorks, updateCaption, publish }
+  return { init, readWorks, updateCaption, addWork, publish }
 }

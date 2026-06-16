@@ -3,10 +3,24 @@ import { scryptSync, timingSafeEqual } from 'node:crypto'
 import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
+import multipart from '@fastify/multipart'
 import { createRepo, WorkNotFoundError } from './repo.js'
+import { processImage } from './images.js'
 
 const SESSION_COOKIE = 'session'
 const SESSION_VALUE = 'ok'
+
+// Accepted upload types -> the extension the pristine original is stored under.
+// HEIC stays .heic; sharp/libvips decodes it to generate the variants.
+const ACCEPTED_TYPES = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'image/heif': 'heic',
+}
+
+const DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
 
 // Constant-time verify of `password` against a stored `saltHex:derivedKeyHex` scrypt hash.
 function verifyPassword(password, storedHash) {
@@ -31,6 +45,13 @@ function validateCaption(body) {
   return null
 }
 
+// Coerce an optional multipart year field (a string) to a number, defaulting to
+// the current year when omitted or non-numeric, so the record is always valid.
+function parseYear(raw) {
+  const n = Number(raw)
+  return raw != null && raw !== '' && Number.isFinite(n) ? n : new Date().getFullYear()
+}
+
 export function buildApp(opts = {}) {
   const cookieSecret = opts.cookieSecret ?? process.env.COOKIE_SECRET
   const passwordHash = opts.passwordHash ?? process.env.ADMIN_PASSWORD_HASH
@@ -38,6 +59,7 @@ export function buildApp(opts = {}) {
   const remoteUrl = opts.remoteUrl ?? process.env.GIT_REMOTE_URL
   const workDir = opts.workDir ?? DEFAULT_WORK_DIR
   const repo = opts.repo ?? createRepo({ remoteUrl, workDir })
+  const maxFileBytes = opts.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
 
   const app = Fastify({ logger: false })
 
@@ -49,6 +71,9 @@ export function buildApp(opts = {}) {
   app.register(cookie, { secret: cookieSecret })
   // Registered globally but opted in per-route, so only login is throttled.
   app.register(rateLimit, { global: false })
+  // Busboy enforces the size cap mid-stream: an oversized file rejects without
+  // buffering the whole upload.
+  app.register(multipart, { limits: { fileSize: maxFileBytes } })
 
   // Rejects any request that does not carry a valid, signed session cookie.
   async function requireSession(request, reply) {
@@ -101,6 +126,63 @@ export function buildApp(opts = {}) {
         }
         throw err
       }
+    })
+
+    // Upload a new work: validate -> process (sharp) -> commit original + the
+    // full responsive variant set + gallery record to cms-draft.
+    routes.post('/api/works', { preHandler: requireSession }, async (request, reply) => {
+      let fileBuffer
+      let mimetype
+      const fields = {}
+
+      try {
+        for await (const part of request.parts()) {
+          if (part.type === 'file') {
+            mimetype = part.mimetype
+            // toBuffer() drains the stream; throws FST_REQ_FILE_TOO_LARGE if the
+            // size cap is exceeded.
+            fileBuffer = await part.toBuffer()
+          } else {
+            fields[part.fieldname] = part.value
+          }
+        }
+      } catch (err) {
+        if (err.code === 'FST_REQ_FILE_TOO_LARGE') {
+          return reply.code(413).send({ error: 'file too large' })
+        }
+        throw err
+      }
+
+      if (!fileBuffer) {
+        return reply.code(400).send({ error: 'file is required' })
+      }
+
+      const ext = ACCEPTED_TYPES[mimetype]
+      if (!ext) {
+        return reply.code(415).send({ error: 'unsupported file type' })
+      }
+
+      let processed
+      try {
+        processed = await processImage(fileBuffer)
+      } catch {
+        // sharp could not decode it — treat as an unsupported/corrupt image.
+        return reply.code(415).send({ error: 'could not read image' })
+      }
+
+      const caption = {
+        holder: (fields.holder ?? '').trim() || 'Untitled',
+        desc: (fields.desc ?? '').trim(),
+        year: parseYear(fields.year),
+      }
+
+      const work = await repo.addWork({
+        ext,
+        originalBuffer: fileBuffer,
+        variants: processed.variants,
+        caption,
+      })
+      return reply.code(201).send({ work })
     })
 
     // Promote the draft: merge cms-draft -> main (triggers deploy in prod).

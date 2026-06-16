@@ -30,6 +30,17 @@
 				</div>
 			</div>
 			<p v-if="publishMsg" class="admin__notice">{{ publishMsg }}</p>
+			<div class="admin__upload">
+				<label class="admin__upload-label">
+					{{ uploading ? 'Uploading…' : 'Add work' }}
+					<input
+						type="file"
+						accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+						:disabled="uploading"
+						@change="upload"
+					/>
+				</label>
+			</div>
 			<ul>
 				<li v-for="work in works" :key="work.id">
 					<span class="admin__order">{{ work.order }}</span>
@@ -74,6 +85,7 @@
 	const savingId = ref('');
 	const publishing = ref(false);
 	const publishMsg = ref('');
+	const uploading = ref(false);
 
 	// Fetch the works list; returns true if the session is valid (200), false on 401.
 	async function loadWorks() {
@@ -134,6 +146,43 @@
 			publishMsg.value = 'Could not reach the server.';
 		} finally {
 			savingId.value = '';
+		}
+	}
+
+	// Upload a new photo: POST the multipart form, then refresh the list so the
+	// new work appears. Surfaces clear errors for too-large / unsupported files.
+	async function upload(event) {
+		const file = event.target.files?.[0];
+		if (!file) return;
+		uploading.value = true;
+		publishMsg.value = '';
+		try {
+			const form = new FormData();
+			form.append('file', file);
+			const res = await fetch('/api/works', {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: form,
+			});
+			if (res.status === 413) {
+				publishMsg.value = 'That file is too large (max 25 MB).';
+				return;
+			}
+			if (res.status === 415) {
+				publishMsg.value = 'Unsupported file type. Use JPEG, PNG, WebP, or HEIC.';
+				return;
+			}
+			if (!res.ok) {
+				publishMsg.value = 'Upload failed. Please try again.';
+				return;
+			}
+			await loadWorks();
+			publishMsg.value = 'Uploaded to draft.';
+		} catch {
+			publishMsg.value = 'Could not reach the server.';
+		} finally {
+			uploading.value = false;
+			event.target.value = '';
 		}
 	}
 
@@ -241,6 +290,20 @@
 		&__notice {
 			color: var(--ember);
 			margin-bottom: 1rem;
+		}
+
+		&__upload {
+			margin-bottom: 1.5rem;
+		}
+
+		&__upload-label {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.75rem;
+			padding: 0.6rem 1rem;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			cursor: pointer;
 		}
 
 		&__works ul {
