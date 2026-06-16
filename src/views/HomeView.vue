@@ -1,233 +1,351 @@
 <template>
-	<div class="home">
-		<div class="home__center">
-			<div class="control" @click="move('back')">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 28 28"
-					style="fill: var(--cream); fill-rule: evenodd"
-				>
-					<path
-						d="M14,1A13,13,0,1,1,1,14,13,13,0,0,1,14,1m0-1A14,14,0,1,0,28,14,14,14,0,0,0,14,0Z"
-					/>
-					<rect x="6.5" y="13" width="15" height="2" />
-				</svg>
-			</div>
-			<div class="img-wrap">
-				<img
-					:src="currentImage.link"
-					alt=""
-					:key="currentImage.index"
-					class="full-image"
-				/>
+	<section class="collage">
+		<h2 class="collage__type" aria-hidden="true">Ortiz<br />Metals</h2>
 
-				<div class="home__center--desc">
-					{{ currentImage.desc }}
-				</div>
-			</div>
-			<div class="control" @click="move('forward')">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 28 28"
-					style="fill: var(--cream); fill-rule: evenodd"
-				>
-					<path
-						d="M14,1A13,13,0,1,1,1,14,13,13,0,0,1,14,1m0-1A14,14,0,1,0,28,14,14,14,0,0,0,14,0Z"
-					/>
-					<polygon
-						points="21.5 12.35 15.4 12.35 15.4 6.35 13.4 6.35 13.4 12.35 6.5 12.35 6.5 14.35 13.4 14.35 13.4 21.35 15.4 21.35 15.4 14.35 21.5 14.35 21.5 12.35"
-					/>
-				</svg>
-			</div>
-		</div>
-		<div class="sider">
-			<div
-				v-for="image in this.imageData"
-				class="sider--entry"
-				:key="image.index"
-				:class="{ active: image.index == this.index }"
-				@click="setImageIndex(image.index)"
+		<div class="collage__grid">
+			<figure ref="featureEl" class="feature">
+				<img ref="featureImg" :src="feature.link" :alt="feature.desc" />
+				<figcaption>
+					<span class="feature__tag">Selected Work — {{ pad(featureIndex + 1) }}</span>
+					<strong>{{ feature.holder }}</strong>
+					<span class="feature__desc">{{ feature.desc }}</span>
+					<span class="feature__year">{{ feature.year }}</span>
+				</figcaption>
+			</figure>
+
+			<button
+				v-for="tile in tiles"
+				:key="tile.img.index"
+				type="button"
+				class="tile"
+				@click="select(tile.i)"
 			>
-				{{ image.holder }}
-			</div>
+				<img :src="tile.img.link" :alt="tile.img.desc" />
+				<span class="tile__label">{{ tile.img.holder }}</span>
+			</button>
 		</div>
-	</div>
+
+		<p class="collage__foot">
+			<span>{{ pad(images.length) }} works</span>
+			<span>Sculpture · Architectural · Public</span>
+		</p>
+	</section>
 </template>
 
-<script>
-	import { imageData } from '@/imageData.js';
+<script setup>
+	import { computed, nextTick, onMounted, ref } from 'vue';
 	import gsap from 'gsap';
+	import { imageData as images } from '@/imageData.js';
 
-	export default {
-		data() {
-			return {
-				index: 0,
-				imageData: [],
-			};
-		},
-		mounted() {
-			this.imageData = imageData;
-		},
-		methods: {
-			move(dir) {
-				if (dir === 'forward') {
-					this.index === this.imageData.length - 1
-						? (this.index = 0)
-						: this.index++;
-				} else if (dir === 'back') {
-					this.index === 0
-						? (this.index = this.imageData.length - 1)
-						: this.index--;
-				}
-			},
-			setImageIndex(index) {
-				this.index = index;
-			},
-			doAnimation() {
-				console.log('this ', this.isFirstRun);
+	const featureIndex = ref(0);
+	const featureImg = ref(null);
+	const featureEl = ref(null);
 
-				let tl = gsap.timeline();
-				tl.set('.sider, .home__center', { opacity: 0 });
-				tl.to('.sider', { opacity: 1, delay: 5 }).to(
-					'.home__center',
-					{ opacity: 1 }
+	const feature = computed(() => images[featureIndex.value] || {});
+	const tiles = computed(() =>
+		images.map((img, i) => ({ img, i })).filter((t) => t.i !== featureIndex.value)
+	);
+	const pad = (n) => String(n).padStart(2, '0');
+
+	// slow, living "breath" on the hero so it never feels static
+	let drift = null;
+	function startDrift() {
+		if (drift) drift.kill();
+		if (!featureImg.value) return;
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		drift = gsap.fromTo(
+			featureImg.value,
+			{ scale: 1 },
+			{ scale: 1.06, duration: 9, ease: 'sine.inOut', yoyo: true, repeat: -1 }
+		);
+	}
+
+	function select(i) {
+		if (i === featureIndex.value) return;
+		featureIndex.value = i;
+		nextTick(() => {
+			if (drift) drift.kill();
+			if (featureImg.value) {
+				gsap.fromTo(
+					featureImg.value,
+					{ clipPath: 'inset(0 0 0 100%)', scale: 1.12 },
+					{
+						clipPath: 'inset(0 0 0 0%)',
+						scale: 1,
+						duration: 0.8,
+						ease: 'power4.out',
+						onComplete: startDrift,
+					}
 				);
-				this.isFirstRun = false;
-			},
-			doNotAnimate() {
-				tl.set('.sider, .home__center', { opacity: 1 });
-			},
-		},
-		computed: {
-			currentImage() {
-				return this.imageData[this.index] || {};
-			},
-		},
-	};
+			}
+			// On mobile the feature sits above the tiles — bring the swapped work into view.
+			if (window.matchMedia('(max-width: 820px)').matches && featureEl.value) {
+				featureEl.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}
+		});
+	}
+
+	onMounted(() => {
+		const tl = gsap.timeline({ delay: 0.15 });
+
+		tl.fromTo(
+			'.collage__type',
+			{ yPercent: 18, opacity: 0 },
+			{ yPercent: 0, opacity: 0.07, duration: 1.2, ease: 'power4.out' },
+			0
+		)
+			// hero wipes in from the right edge while the image settles out of an overscale
+			.fromTo(
+				'.feature',
+				{ clipPath: 'inset(0 0 0 100%)' },
+				{ clipPath: 'inset(0 0 0 0%)', duration: 1, ease: 'power4.out' },
+				0.1
+			)
+			.fromTo(
+				'.feature img',
+				{ scale: 1.2 },
+				{ scale: 1, duration: 1.4, ease: 'power3.out', onComplete: startDrift },
+				0.1
+			)
+			// tiles cascade in after the hero is established
+			.fromTo(
+				'.collage .tile',
+				{ y: 40, opacity: 0, clipPath: 'inset(0 0 100% 0)' },
+				{
+					y: 0,
+					opacity: 1,
+					clipPath: 'inset(0 0 0% 0)',
+					duration: 0.85,
+					stagger: 0.08,
+					ease: 'power3.out',
+				},
+				0.5
+			);
+	});
 </script>
 
-<style lang="scss">
-	.home {
-		display: flex;
-		align-items: center;
-		justify-content: center;
+<style scoped lang="scss">
+	.collage {
+		position: relative;
+		width: min(1500px, 100%);
+		margin: 0 auto;
+		padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 4vw, 3rem) clamp(2rem, 4vw, 3rem);
+		min-height: calc(100vh - 12rem);
+		isolation: isolate;
+	}
+
+	.collage__type {
+		position: absolute;
+		top: clamp(-1rem, -1vw, 0rem);
+		right: clamp(1rem, 4vw, 3rem);
+		z-index: -1;
+		margin: 0;
 		font-family: var(--font-antonio);
-		letter-spacing: 1px;
-		height: 100%;
-		margin-bottom: auto;
+		text-transform: uppercase;
+		text-align: right;
+		line-height: 0.78;
+		font-size: clamp(6rem, 22vw, 22rem);
+		color: var(--bone);
+		opacity: 0.07;
+		pointer-events: none;
+	}
 
-		@media (max-width: 37.5em) {
-			flex-direction: column;
-			justify-content: space-around;
-			align-items: center;
-		}
+	.collage__grid {
+		display: grid;
+		grid-template-columns: repeat(12, 1fr);
+		grid-auto-rows: clamp(3.4rem, 6.2vh, 5.4rem);
+		gap: clamp(0.5rem, 1vw, 0.9rem);
+	}
 
-		&__center {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			font-size: 1.3rem;
-			height: 100%;
-			margin-bottom: auto;
+	.feature {
+		position: relative;
+		grid-column: 1 / 8;
+		grid-row: 1 / 8;
+		margin: 0;
+		overflow: hidden;
+		border: 1px solid var(--line);
+		box-shadow: 0 40px 110px rgba(0, 0, 0, 0.5);
 
-			@media (max-width: 37.5em) {
-				margin-bottom: 0;
-				height: 70%;
-			}
-
-			&--desc {
-				font-family: var(--font-antonio);
-				margin-top: 1rem;
-
-				@media (max-width: 37.5em) {
-					font-size: 1rem;
-					margin-bottom: 0.3rem;
-				}
-			}
-		}
-
-		& .img-wrap {
-			display: block;
-			max-width: 450px;
-			max-height: 450px;
-		}
-		
-		& .full-image {
-			display: block;
+		img {
 			width: 100%;
-			object-fit: contain;
-			margin: 0 auto;
-			border-radius: 5px;
-			box-shadow: 0px 3px 15px rgba(0, 0, 0, 0.2);
-			height: auto;
+			height: 100%;
+			object-fit: cover;
+			will-change: clip-path, transform;
+		}
+
+		figcaption {
+			position: absolute;
+			left: 0;
+			bottom: 0;
+			right: 0;
+			display: grid;
+			grid-template-columns: 1fr auto;
+			gap: 0.1rem 1rem;
+			padding: clamp(1rem, 2vw, 1.6rem);
+			background: linear-gradient(to top, rgba(10, 7, 6, 0.92), transparent);
+		}
+
+		&__tag {
+			grid-column: 1 / -1;
+			font-family: var(--font-antonio);
+			text-transform: uppercase;
+			letter-spacing: 0.16em;
+			font-size: 0.72rem;
+			color: var(--ember);
+			margin-bottom: 0.4rem;
+		}
+
+		strong {
+			grid-column: 1;
+			font-family: var(--font-antonio);
+			text-transform: uppercase;
+			font-weight: 500;
+			font-size: clamp(1.8rem, 3.5vw, 3rem);
+			line-height: 0.95;
+			color: var(--bone);
+		}
+
+		&__desc {
+			grid-column: 1;
+			font-family: Georgia, serif;
+			font-style: italic;
+			color: rgba(255, 233, 211, 0.75);
+		}
+
+		&__year {
+			grid-column: 2;
+			grid-row: 2 / 4;
+			align-self: end;
+			font-family: var(--font-antonio);
+			font-size: clamp(1.8rem, 3vw, 2.6rem);
+			color: var(--ember);
 		}
 	}
-	.sider {
-		position: fixed;
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
-		top: 50px;
-		right: 50px;
-		text-align: left;
 
-		@media (max-width: 700px) {
-			display: none;
-		}
-
-		&--entry {
-			display: block;
-			cursor: pointer;
-			transition: all 0.4s ease;
-
-			@media (max-width: 37.5em) {
-				font-size: 0.9rem;
-				margin: 0 0.2rem;
-				margin-bottom: 1rem;
-				border: 1px solid var(--cream);
-				padding: 0.2rem 0.3rem;
-			}
-
-			&:hover {
-				filter: opacity(50%);
-			}
-		}
-	}
-
-	.control {
+	.tile {
+		position: relative;
+		overflow: hidden;
+		padding: 0;
+		border: 1px solid var(--line);
+		background: var(--ink);
 		cursor: pointer;
-		width: 30px;
-		transition: all 0.4s ease;
-		margin: 0 1rem;
 
-		@media (max-width: 700px) {
-			min-width: 30px;
+		img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s ease;
+			filter: grayscale(0.35) brightness(0.82);
 		}
 
-		&:hover {
-			filter: opacity(50%);
+		&__label {
+			position: absolute;
+			left: 0.6rem;
+			bottom: 0.5rem;
+			font-family: var(--font-antonio);
+			text-transform: uppercase;
+			font-size: 0.78rem;
+			color: var(--bone);
+			opacity: 0;
+			transform: translateY(0.4rem);
+			transition: opacity 0.35s ease, transform 0.35s ease;
 		}
+
+		&:hover img {
+			transform: scale(1.08);
+			filter: grayscale(0) brightness(1);
+		}
+
+		&:hover .tile__label {
+			opacity: 1;
+			transform: translateY(0);
+		}
+
+		// asymmetric placement — deterministic collage for the 7 non-feature tiles
+		&:nth-of-type(1) { grid-column: 8 / 13; grid-row: 1 / 4; }
+		&:nth-of-type(2) { grid-column: 8 / 11; grid-row: 4 / 8; }
+		&:nth-of-type(3) { grid-column: 11 / 13; grid-row: 4 / 6; }
+		&:nth-of-type(4) { grid-column: 11 / 13; grid-row: 6 / 8; }
+		&:nth-of-type(5) { grid-column: 1 / 4; grid-row: 8 / 12; }
+		&:nth-of-type(6) { grid-column: 4 / 8; grid-row: 8 / 12; }
+		&:nth-of-type(7) { grid-column: 8 / 13; grid-row: 8 / 12; }
 	}
 
-	.mobile-sider {
+	.collage__foot {
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-around;
-		gap: 10px;
-		width: 90%;
-		display: none;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-top: 1.2rem;
+		font-family: var(--font-antonio);
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		font-size: 0.8rem;
+		color: rgba(255, 233, 211, 0.55);
+	}
 
-		@media (min-width: 700px) {
-			display: none;
+	/* ---- Tablet: feature on top, tiles in a balanced grid ---- */
+	@media (max-width: 820px) {
+		.collage {
+			min-height: auto;
+		}
+
+		.collage__type {
+			position: static;
+			text-align: left;
+			margin-bottom: 0.5rem;
+			font-size: clamp(3.5rem, 16vw, 7rem);
+			opacity: 0.12;
+		}
+
+		.collage__grid {
+			grid-template-columns: repeat(4, 1fr);
+			grid-auto-rows: auto;
+		}
+
+		.feature {
+			grid-column: 1 / -1;
+			grid-row: auto;
+			aspect-ratio: 4 / 3;
+		}
+
+		.tile {
+			grid-column: span 2 !important;
+			grid-row: auto !important;
+			aspect-ratio: 4 / 3;
+
+			img {
+				filter: none;
+			}
+
+			&__label {
+				opacity: 1;
+				transform: none;
+				background: linear-gradient(to top, rgba(10, 7, 6, 0.85), transparent);
+				left: 0;
+				right: 0;
+				bottom: 0;
+				padding: 1.4rem 0.6rem 0.5rem;
+			}
 		}
 	}
 
-	.active {
-		color: var(--blue);
+	/* ---- Phone: full-bleed feature, two-up tiles ---- */
+	@media (max-width: 520px) {
+		.collage {
+			padding: 1rem 1rem 2rem;
+		}
 
-		@media (max-width: 37.5em) {
-			color: var(--blue);
+		.feature {
+			aspect-ratio: 3 / 4;
+		}
+
+		.feature strong {
+			font-size: clamp(1.6rem, 7vw, 2.2rem);
+		}
+
+		.collage__foot {
+			flex-direction: column;
+			gap: 0.3rem;
 		}
 	}
 </style>

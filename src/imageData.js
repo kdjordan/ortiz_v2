@@ -4,14 +4,14 @@ export const imageData = [
 		link: '/images/900/wall-2.png',
 		desc: 'Interior wall sculpture',
 		year: 2018,
-		holder: 'Scuplture',
+		holder: 'Sculpture',
 	},
 	{
 		index: 1,
 		link: '/images/900/wall-2-1.png',
 		desc: 'Interior wall sculpture',
 		year: 2018,
-		holder: 'Scuplture',
+		holder: 'Relief',
 	},
 	{
 		index: 2,

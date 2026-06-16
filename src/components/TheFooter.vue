@@ -2,7 +2,7 @@
   <div class="bottom">
       <div class="bottom__left">
           <div>
-              <a href="mailto:ortiz@gmail.com" target="_blank" rel="noopener noreferrer nofollow">ortizmetals@gmail.com</a> 
+              <a href="mailto:ortizmetals@gmail.com" target="_blank" rel="noopener noreferrer nofollow">ortizmetals@gmail.com</a>
           </div>
           <div>
               <a href="tel:541-510-2182">541-510-2182</a> 
@@ -27,25 +27,27 @@ a {
   cursor: pointer;
 }
 .bottom {
-  border-top: 1px solid var(--hot-orange);
+  border-top: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 1rem;
-  padding-top: .7rem;
-  padding-bottom: .7rem;
+  gap: 1rem;
+  padding: 0.9rem clamp(1rem, 4vw, 3rem);
   font-family: var(--font-antonio);
-  letter-spacing: 1px;
+  letter-spacing: 0;
+  color: rgba(255, 233, 211, 0.82);
 
   @media (max-width: 35em) {
       flex-direction: column;
       gap: 10px;
+      align-items: flex-start;
   }
 
 
   &__mid {
       font-size: 1.4rem;
       line-height: 1.8;
+      color: var(--bone);
 
        @media (max-width: 35em) {
           order: -1;

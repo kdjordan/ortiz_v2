@@ -4,8 +4,9 @@
 			xmlns="http://www.w3.org/2000/svg"
 			viewBox="0 0 200.51 578.74"
 			class="logo"
-			stroke="var(--brown)"
+			stroke="var(--ink)"
 			fill="var(--cream)"
+			aria-hidden="true"
 		>
 			<path
 				class="logo"
@@ -22,14 +23,14 @@
 <style scoped lang="scss">
 	.logo {
 		position: fixed;
-		top: 0;
-		left: 0;
-		width: 8%;
-		margin-left: 1rem;
-		margin-top: 1rem;
+		bottom: 2rem;
+		left: clamp(1rem, 4vw, 3rem);
+		width: clamp(2.4rem, 5vw, 4.5rem);
+		opacity: 0.28;
+		pointer-events: none;
 
 		@media (max-width: 37.5em) {
-			width: 2rem;
+			display: none;
 		}
 	}
 </style>

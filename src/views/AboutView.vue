@@ -1,9 +1,10 @@
 <template>
 	<div class="about">
-		<div>
+		<div class="about__portrait">
 			<img src="/images/r-profile.jpg" alt="Randy Ortiz Artist" />
 		</div>
-		<div class="about-copy">
+		<div class="about__copy">
+			<p class="eyebrow">About the artist</p>
 			<p>
 				Randy Ortiz is a Eugene, Oregon based, Southern California
 				native, who received his Fine and Applied Arts degree from the
@@ -28,35 +29,64 @@
 
 <style scoped lang="scss">
 	.about {
-		font-family: var(--font-roboto);
-		letter-spacing: 1px;
-		font-size: 1.2rem;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
+		flex: 1;
+		font-family: var(--font-body);
+		letter-spacing: 0;
+		font-size: clamp(1rem, 1.6vw, 1.18rem);
+		display: grid;
+		grid-template-columns: minmax(12rem, 0.55fr) minmax(18rem, 1fr);
+		gap: clamp(1.5rem, 5vw, 5rem);
 		align-items: center;
+		width: min(960px, calc(100% - 2rem));
 		margin: 0 auto;
-		line-height: 1.4;
-		margin-bottom: auto;
-		margin-top: 2rem;
+		padding: clamp(2rem, 6vw, 5rem) 0;
+		line-height: 1.6;
 
-		& div {
-			margin: 1rem 0;
-			width: 50%;
+		&__portrait {
+			position: relative;
 
-			@media (max-width: 500px) {
-				width: 70%;
+			&::before {
+				content: '';
+				position: absolute;
+				inset: -0.8rem;
+				border: 1px solid var(--line);
+				border-radius: 8px;
 			}
 
-			& p {
+			img {
+				position: relative;
+				display: block;
+				width: 100%;
+				aspect-ratio: 4 / 5;
+				object-fit: cover;
+				border-radius: 8px;
+				box-shadow: 0 28px 80px var(--shadow);
+			}
+		}
+
+		&__copy {
+			color: rgba(255, 246, 234, 0.85);
+
+			p {
 				text-align: left;
-				margin: 1rem;
+				margin-bottom: 1rem;
 			}
+		}
 
-			& img {
-				height: 200px;
-				width: 200px;
-				border-radius: 50%;
+		.eyebrow {
+			font-family: var(--font-antonio);
+			text-transform: uppercase;
+			color: var(--ember);
+			margin-bottom: 1.25rem;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.about {
+			grid-template-columns: 1fr;
+
+			&__portrait {
+				max-width: 18rem;
 			}
 		}
 	}

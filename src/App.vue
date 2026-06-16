@@ -1,5 +1,4 @@
 <template>
-	<TheLoading />
 	<div class="main-wrapper">
 		<TheHeader />
 		<TheLogo />
@@ -11,7 +10,6 @@
 <script setup>
 	import TheFooter from '@/components/TheFooter.vue';
 	import TheHeader from '@/components/TheHeader.vue';
-	import TheLoading from '@/components/TheLoading.vue';
 	import TheLogo from '@/components/TheLogo.vue';
 </script>
 
@@ -19,7 +17,7 @@
 	.main-wrapper {
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
-		width: 100vw;
+		min-height: 100vh;
+		width: 100%;
 	}
 </style>
