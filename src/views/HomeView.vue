@@ -59,7 +59,17 @@
 	import { computed, nextTick, onMounted, ref } from 'vue';
 	import { useHead } from '@unhead/vue';
 	import gsap from 'gsap';
-	import { imageData as images } from '@/imageData.js';
+	import gallery from '@/gallery.json';
+
+	// Flatten each work's caption onto the work so the template keeps using
+	// img.base / img.holder / img.desc / img.year (index = stable render order).
+	const images = gallery.works.map((work) => ({
+		index: work.order,
+		base: work.base,
+		holder: work.caption.holder,
+		desc: work.caption.desc,
+		year: work.caption.year,
+	}));
 
 	useHead({
 		title: 'Ortiz Metals — Custom Sculpture & Metalwork | Randy Ortiz, Eugene OR',
