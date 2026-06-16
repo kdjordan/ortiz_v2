@@ -57,8 +57,20 @@
 
 <script setup>
 	import { computed, nextTick, onMounted, ref } from 'vue';
+	import { useHead } from '@unhead/vue';
 	import gsap from 'gsap';
 	import { imageData as images } from '@/imageData.js';
+
+	useHead({
+		title: 'Ortiz Metals — Custom Sculpture & Metalwork | Randy Ortiz, Eugene OR',
+		meta: [
+			{
+				name: 'description',
+				content:
+					'Custom sculpture, architectural metalwork, and site-specific public art by Randy Ortiz, a Eugene, Oregon based artist.',
+			},
+		],
+	});
 
 	const featureIndex = ref(0);
 	const featureImg = ref(null);

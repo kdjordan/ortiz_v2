@@ -1,11 +1,9 @@
 import './assets/main.css'
 
-import { createApp } from 'vue'
+import { ViteSSG } from 'vite-ssg'
 import App from './App.vue'
-import router from './router'
+import { routes } from './router'
 
-const app = createApp(App)
-
-app.use(router)
-
-app.mount('#app')
+// ViteSSG creates the app + router (history mode) and prerenders each route
+// to static HTML at build time, hydrating on the client.
+export const createApp = ViteSSG(App, { routes })

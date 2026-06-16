@@ -45,6 +45,21 @@
 	</div>
 </template>
 
+<script setup>
+	import { useHead } from '@unhead/vue';
+
+	useHead({
+		title: 'About Randy Ortiz — Sculptor in Eugene, Oregon | Ortiz Metals',
+		meta: [
+			{
+				name: 'description',
+				content:
+					'Randy Ortiz is a Eugene, Oregon based sculptor trained in classical drawing and sculptural methods, with work in private and public collections across the Willamette Valley.',
+			},
+		],
+	});
+</script>
+
 <style scoped lang="scss">
 	.about {
 		flex: 1;
