@@ -6,3 +6,5 @@ dist
 npm-debug.log*
 Dockerfile
 README.md
+source-images
+scripts

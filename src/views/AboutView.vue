@@ -1,7 +1,25 @@
 <template>
 	<div class="about">
 		<div class="about__portrait">
-			<img src="/images/r-profile.jpg" alt="Randy Ortiz Artist" />
+			<picture>
+				<source
+					type="image/avif"
+					srcset="/images/opt/r-profile-480.avif 480w, /images/opt/r-profile-800.avif 800w"
+					sizes="(max-width: 720px) 80vw, 40vw"
+				/>
+				<source
+					type="image/webp"
+					srcset="/images/opt/r-profile-480.webp 480w, /images/opt/r-profile-800.webp 800w"
+					sizes="(max-width: 720px) 80vw, 40vw"
+				/>
+				<img
+					src="/images/opt/r-profile-800.jpg"
+					srcset="/images/opt/r-profile-480.jpg 480w, /images/opt/r-profile-800.jpg 800w"
+					sizes="(max-width: 720px) 80vw, 40vw"
+					alt="Portrait of sculptor Randy Ortiz"
+					decoding="async"
+				/>
+			</picture>
 		</div>
 		<div class="about__copy">
 			<p class="eyebrow">About the artist</p>
@@ -41,6 +59,10 @@
 		margin: 0 auto;
 		padding: clamp(2rem, 6vw, 5rem) 0;
 		line-height: 1.6;
+
+		picture {
+			display: contents;
+		}
 
 		&__portrait {
 			position: relative;
