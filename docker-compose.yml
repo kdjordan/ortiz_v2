@@ -1,0 +1,41 @@
+# LOCAL-ONLY full-stack smoke for the Admin CMS (Phase A). NOT production.
+#
+# Brings up the static site (nginx, root Dockerfile) + the Fastify API
+# (server/Dockerfile), wired to a seeded local *bare* git repo that stands in for
+# the GitHub remote. The site reverse-proxies /api -> the api service, so the
+# browser/curl talks to a single same-origin host (http://localhost:8080) exactly
+# like prod's apex -> /api split.
+#
+# Usage:
+#   ./scripts/seed-cms-repo.sh     # create .cms-local/{remote.git, api.env}
+#   docker compose up --build      # bring the stack up
+#   # smoke: http://localhost:8080  (site)  /  http://localhost:8080/api/...  (API)
+#   docker compose down            # stop
+#   rm -rf .cms-local              # teardown the seeded remote + local secrets
+services:
+  api:
+    build:
+      context: ./server
+    # Gitignored throwaway secrets (ADMIN_PASSWORD_HASH + COOKIE_SECRET), written
+    # by scripts/seed-cms-repo.sh.
+    env_file:
+      - ./.cms-local/api.env
+    environment:
+      # The CMS clones/pushes this remote; it's the bare repo bind-mounted below.
+      GIT_REMOTE_URL: file:///remote/remote.git
+    volumes:
+      # Bind the seeded bare repo so pushes are inspectable from the host with
+      # `git -C .cms-local/remote.git ...`.
+      - ./.cms-local/remote.git:/remote/remote.git
+    expose:
+      - "3001"
+    restart: unless-stopped
+
+  site:
+    build:
+      context: .
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    restart: unless-stopped

@@ -28,3 +28,6 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# Phase-A local CMS smoke (docker-compose): seeded bare remote + throwaway secrets
+.cms-local/
