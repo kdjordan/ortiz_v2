@@ -81,7 +81,12 @@
       "edit": {
         "brightness": 1,
         "contrast": 1,
-        "crop": null,
+        "crop": {
+          "x": 0,
+          "y": 200,
+          "w": 900,
+          "h": 500
+        },
         "tilt": 0
       }
     },
