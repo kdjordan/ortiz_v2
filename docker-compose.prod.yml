@@ -20,6 +20,8 @@ services:
       GIT_REMOTE_URL: git@github.com:kdjordan/ortiz_v2.git
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
       COOKIE_SECRET: ${COOKIE_SECRET}
+      # DEPLOY_KEY_B64 (base64, paste-safe) is preferred; DEPLOY_KEY is a raw fallback.
+      DEPLOY_KEY_B64: ${DEPLOY_KEY_B64}
       DEPLOY_KEY: ${DEPLOY_KEY}
     expose:
       - "3001"
