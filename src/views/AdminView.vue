@@ -122,7 +122,9 @@
 			</aside>
 
 			<main class="admin__main">
-				<p v-if="publishMsg" class="admin__notice">{{ publishMsg }}</p>
+				<Transition name="toast">
+					<p v-if="publishMsg" class="admin__notice">{{ publishMsg }}</p>
+				</Transition>
 
 				<div v-if="!currentWork" class="admin__empty">
 					<p>Select a work to edit — or add one with “+ Add work”.</p>
@@ -186,6 +188,21 @@
 							<p class="admin__editor-hint">
 								Drag the photo to position · scroll to zoom · the frame is exactly what publishes
 							</p>
+
+							<!-- Tool tabs — long skinny buttons directly under the hint -->
+							<div class="admin__editor-rail">
+								<button
+									v-for="t in editorTools"
+									:key="t.id"
+									type="button"
+									class="admin__tool"
+									:class="{ 'admin__tool--on': tool === t.id }"
+									@click="tool = t.id"
+								>
+									<span class="admin__tool-ico">{{ t.icon }}</span>
+									<span class="admin__tool-name">{{ t.name }}</span>
+								</button>
+							</div>
 
 							<div class="admin__editor-controls">
 								<template v-if="tool === 'crop'">
@@ -268,20 +285,6 @@
 								</button>
 							</div>
 						</div>
-						<!-- Tool tabs — long skinny buttons across the bottom -->
-						<div class="admin__editor-rail">
-							<button
-								v-for="t in editorTools"
-								:key="t.id"
-								type="button"
-								class="admin__tool"
-								:class="{ 'admin__tool--on': tool === t.id }"
-								@click="tool = t.id"
-							>
-								<span class="admin__tool-ico">{{ t.icon }}</span>
-								<span class="admin__tool-name">{{ t.name }}</span>
-							</button>
-						</div>
 					</div>
 				</div>
 			</main>
@@ -290,7 +293,7 @@
 </template>
 
 <script setup>
-	import { computed, nextTick, onMounted, ref } from 'vue';
+	import { computed, nextTick, onMounted, ref, watch } from 'vue';
 	import { Cropper, Preview } from 'vue-advanced-cropper';
 	import 'vue-advanced-cropper/dist/style.css';
 	import WheelControl from '@/components/WheelControl.vue';
@@ -303,6 +306,12 @@
 	const savingId = ref('');
 	const publishing = ref(false);
 	const publishMsg = ref('');
+	// Surface status messages (saved / published / errors) as an auto-dismissing toast.
+	let msgTimer;
+	watch(publishMsg, (v) => {
+		clearTimeout(msgTimer);
+		if (v) msgTimer = setTimeout(() => (publishMsg.value = ''), 4000);
+	});
 	// How many unpublished commits cms-draft is ahead of main (#10).
 	const draft = ref({ pending: 0, hasChanges: false });
 	const discarding = ref(false);
@@ -1085,9 +1094,21 @@
 			padding: 1.5rem clamp(1rem, 4vw, 3rem);
 		}
 
+		// Floating toast (auto-dismissed by a watcher), so it doesn't shift the layout.
 		&__notice {
+			position: fixed;
+			top: 1rem;
+			left: 50%;
+			transform: translateX(-50%);
+			z-index: 100;
+			margin: 0;
+			padding: 0.65rem 1.2rem;
+			border-radius: 10px;
+			background: rgba(26, 20, 19, 0.96);
+			border: 1px solid var(--ember);
 			color: var(--ember);
-			margin: 0 0 1rem;
+			font-size: 0.9rem;
+			box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
 		}
 
 		&__empty {
@@ -1302,5 +1323,16 @@
 			gap: 0.6rem;
 			width: 100%;
 		}
+	}
+
+	// Status toast fade + slide (Vue <Transition name="toast">).
+	.toast-enter-active,
+	.toast-leave-active {
+		transition: opacity 0.3s ease, transform 0.3s ease;
+	}
+	.toast-enter-from,
+	.toast-leave-to {
+		opacity: 0;
+		transform: translate(-50%, -0.5rem);
 	}
 </style>
