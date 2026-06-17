@@ -170,6 +170,117 @@ describe('edit (crop + tilt) -> cms-draft', () => {
   })
 })
 
+// A solid mid-grey upload so the colour map's effect on committed variants is
+// observable as a luma shift (AVIF is lossy, but a uniform field survives well).
+function greyImage({ width = 800, height = 600, value = 120 } = {}) {
+  return sharp({
+    create: { width, height, channels: 3, background: { r: value, g: value, b: value } },
+  })
+    .png()
+    .toBuffer()
+}
+
+async function uploadGreyWork(cookies, value) {
+  const { payload, headers } = multipartBody({
+    file: { contentType: 'image/png', filename: 'grey.png', buffer: await greyImage({ value }) },
+  })
+  const res = await app.inject({ method: 'POST', url: '/api/works', cookies, headers, payload })
+  expect(res.statusCode).toBe(201)
+  return res.json().work
+}
+
+// Mean luma of a committed variant read straight from cms-draft.
+async function variantLuma(bareDir, id, width, ext) {
+  const buf = await showBuffer(bareDir, 'cms-draft', `public/images/opt/${id}-${width}.${ext}`)
+  const { data } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  let sum = 0
+  for (let i = 0; i < data.length; i++) sum += data[i]
+  return sum / data.length
+}
+
+describe('edit (brightness + contrast) -> cms-draft', () => {
+  it('applies brightness from the pristine original and stores the params', async () => {
+    app = await makeApp()
+    const cookies = await authedCookie()
+    const { id } = await uploadGreyWork(cookies, 120)
+    const { bareDir } = app.testCtx
+
+    const before = await variantLuma(bareDir, id, 450, 'jpg')
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/works/${id}/edit`,
+      cookies,
+      payload: { crop: null, tilt: 0, brightness: 1.4, contrast: 1 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().work.edit).toEqual({ brightness: 1.4, contrast: 1, crop: null, tilt: 0 })
+
+    // brightness 1.4 on a mid-grey field must raise the mean luma of the variant.
+    const after = await variantLuma(bareDir, id, 450, 'jpg')
+    expect(after).toBeGreaterThan(before + 10)
+
+    const draft = JSON.parse(await showFile(bareDir, 'cms-draft', 'src/gallery.json'))
+    const stored = draft.works.find((w) => w.id === id)
+    expect(stored.edit).toEqual({ brightness: 1.4, contrast: 1, crop: null, tilt: 0 })
+  })
+
+  it('combines brightness with crop: variant dimensions reflect the crop AND pixels reflect the colour map', async () => {
+    app = await makeApp()
+    const cookies = await authedCookie()
+    const { id } = await uploadGreyWork(cookies, 120)
+    const { bareDir } = app.testCtx
+
+    const crop = { x: 100, y: 100, w: 600, h: 300 } // aspect 2.0, wider than the 450 variant
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/works/${id}/edit`,
+      cookies,
+      payload: { crop, tilt: 0, brightness: 1.4, contrast: 1 },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().work.edit).toEqual({ brightness: 1.4, contrast: 1, crop, tilt: 0 })
+
+    // Crop 400x200 (aspect 2.0) scaled to 450 wide -> 450x225.
+    const buf = await showBuffer(bareDir, 'cms-draft', `public/images/opt/${id}-450.avif`)
+    const meta = await sharp(buf).metadata()
+    expect(meta.width).toBe(450)
+    expect(meta.height).toBe(225)
+    // And brightness still raised the field well above the original 120.
+    const luma = await variantLuma(bareDir, id, 450, 'jpg')
+    expect(luma).toBeGreaterThan(140)
+  })
+
+  it('reprocesses non-cumulatively: b=1.2 then back to b=1 equals the identity variant byte-for-byte', async () => {
+    app = await makeApp()
+    const cookies = await authedCookie()
+    const { id } = await uploadGreyWork(cookies, 120)
+    const { bareDir } = app.testCtx
+
+    // The identity variant produced by the upload itself.
+    const identity = await showBuffer(bareDir, 'cms-draft', `public/images/opt/${id}-450.avif`)
+
+    await app.inject({
+      method: 'PUT',
+      url: `/api/works/${id}/edit`,
+      cookies,
+      payload: { crop: null, tilt: 0, brightness: 1.2, contrast: 1 },
+    })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/works/${id}/edit`,
+      cookies,
+      payload: { crop: null, tilt: 0, brightness: 1, contrast: 1 },
+    })
+    expect(res.statusCode).toBe(200)
+    const restored = await showBuffer(bareDir, 'cms-draft', `public/images/opt/${id}-450.avif`)
+
+    // Returning to identity reprocesses from the original, not the brightened render.
+    expect(Buffer.compare(identity, restored)).toBe(0)
+  })
+})
+
 describe('edit validation', () => {
   it('rejects a crop outside the image bounds with 400', async () => {
     app = await makeApp()
@@ -224,6 +335,34 @@ describe('edit validation', () => {
       url: `/api/works/${id}/edit`,
       cookies,
       payload: { crop: { x: 0, y: 0, w: -10, h: 400 }, tilt: 0 },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('rejects a brightness outside the sane range with 400', async () => {
+    app = await makeApp()
+    const cookies = await authedCookie()
+    const { id } = await uploadWork(cookies)
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/works/${id}/edit`,
+      cookies,
+      payload: { crop: null, tilt: 0, brightness: 5, contrast: 1 },
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('rejects a non-finite contrast with 400', async () => {
+    app = await makeApp()
+    const cookies = await authedCookie()
+    const { id } = await uploadWork(cookies)
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/works/${id}/edit`,
+      cookies,
+      payload: { crop: null, tilt: 0, brightness: 1, contrast: 'loud' },
     })
     expect(res.statusCode).toBe(400)
   })

@@ -28,22 +28,32 @@ export function rotatedSize({ width, height }, angleDeg) {
 // Apply the non-destructive edit params to the pristine original, yielding the
 // "master" sharp pipeline that the responsive variants are resized from.
 //
-// CONVENTION — reproduces vue-advanced-cropper's live preview exactly: TILT, then
-// CROP. The cropper's getCanvas() first rotates the source onto a canvas sized to
-// the rotated bounding box, then extracts its `coordinates` rectangle from that
-// rotated canvas. So:
+// CONVENTION — reproduces the editor's live preview exactly, in this pipeline order:
+// COLOUR (brightness+contrast), then TILT, then CROP.
+//
+//   0. colour: the editor previews brightness/contrast as the browser's
+//      `filter: brightness(b) contrast(c)`, i.e. on an 8-bit sRGB value v:
+//      brightness(b) -> v·b, then contrast(c) -> (v−128)·c + 128. Composed, that's
+//      a single affine map  out = (c·b)·v + 128·(1−c)  which sharp.linear(c·b,
+//      128·(1−c)) reproduces exactly. Identity (b=1, c=1) -> linear(1,0), a no-op
+//      (skipped, so the identity master is byte-for-byte the untouched original).
+//      Done FIRST, before tilt, so it acts only on real image pixels — the
+//      transparent corners that tilt exposes get their alpha added by .rotate()
+//      afterwards and stay clean.
 //   1. tilt: rotate the original clockwise by `tilt`° about its centre, expanding
 //      to the rotated bounding box (sharp's .rotate matches the cropper's bbox).
 //   2. crop: extract {x,y,w,h} from that rotated image. The crop rect is therefore
 //      in ROTATED-image pixel space — which equals original-image pixel space when
 //      tilt is 0 (the crop-only case). Order matters: rotate-then-crop ≠
-//      crop-then-rotate. #7/#9 extend this seam; keep the tilt→crop order.
+//      crop-then-rotate. #9 extends this seam; keep the colour→tilt→crop order.
 // Always starts from the pristine original buffer — never a previously rendered
-// variant — so re-editing reloads original + params and reproduces the same
-// result. brightness/contrast are #7 and not applied here yet.
-function applyEdits(buffer, edit = {}) {
-  const { crop = null, tilt = 0 } = edit
+// variant — so re-editing reloads original + params and reproduces the same result.
+export function applyEdits(buffer, edit = {}) {
+  const { brightness = 1, contrast = 1, crop = null, tilt = 0 } = edit
   let pipeline = sharp(buffer)
+  if (brightness !== 1 || contrast !== 1) {
+    pipeline = pipeline.linear(contrast * brightness, 128 * (1 - contrast))
+  }
   if (tilt) {
     pipeline = pipeline.rotate(tilt, { background: ROTATE_BG })
   }

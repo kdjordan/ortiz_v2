@@ -76,7 +76,7 @@
 
 			<!-- Crop + tilt editor -->
 			<div v-if="editingId" class="admin__editor">
-				<div class="admin__editor-stage">
+				<div class="admin__editor-stage" :style="{ '--preview-filter': previewFilter }">
 					<Cropper
 						:key="editingId"
 						ref="cropperRef"
@@ -98,6 +98,28 @@
 					/>
 					<span class="admin__tilt-val">{{ tilt }}°</span>
 				</label>
+				<label class="admin__tilt">
+					Brightness
+					<input
+						v-model.number="brightness"
+						type="range"
+						min="0.5"
+						max="1.5"
+						step="0.01"
+					/>
+					<span class="admin__tilt-val">{{ brightness.toFixed(2) }}</span>
+				</label>
+				<label class="admin__tilt">
+					Contrast
+					<input
+						v-model.number="contrast"
+						type="range"
+						min="0.5"
+						max="1.5"
+						step="0.01"
+					/>
+					<span class="admin__tilt-val">{{ contrast.toFixed(2) }}</span>
+				</label>
 				<div class="admin__editor-actions">
 					<button type="button" :disabled="savingEdit" @click="saveEdit">
 						{{ savingEdit ? 'Saving…' : 'Save edit' }}
@@ -110,7 +132,7 @@
 </template>
 
 <script setup>
-	import { onMounted, ref } from 'vue';
+	import { computed, onMounted, ref } from 'vue';
 	import { Cropper } from 'vue-advanced-cropper';
 	import 'vue-advanced-cropper/dist/style.css';
 
@@ -131,6 +153,14 @@
 	const editingId = ref('');
 	const editorSrc = ref('');
 	const tilt = ref(0);
+	// brightness/contrast (#7): identity is 1. The live preview is the browser's
+	// `filter: brightness(b) contrast(c)`; the backend reproduces it exactly via
+	// sharp.linear when it reprocesses from the original.
+	const brightness = ref(1);
+	const contrast = ref(1);
+	const previewFilter = computed(
+		() => `brightness(${brightness.value}) contrast(${contrast.value})`,
+	);
 	const savingEdit = ref(false);
 	const cropperRef = ref(null);
 	// The cropper's rotate() is relative; track the angle we've applied so a slider
@@ -143,6 +173,8 @@
 		editingId.value = work.id;
 		tilt.value = 0;
 		appliedTilt = 0;
+		brightness.value = 1;
+		contrast.value = 1;
 		cropCoords = null;
 		// Same-origin (via the dev proxy); a fresh Cropper mounts per work (keyed).
 		editorSrc.value = `/api/works/${work.id}/original`;
@@ -188,7 +220,12 @@
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				credentials: 'same-origin',
-				body: JSON.stringify({ crop, tilt: tilt.value }),
+				body: JSON.stringify({
+					crop,
+					tilt: tilt.value,
+					brightness: brightness.value,
+					contrast: contrast.value,
+				}),
 			});
 			if (!res.ok) {
 				publishMsg.value = 'Could not save the edit.';
@@ -475,6 +512,12 @@
 		&__cropper {
 			max-height: 60vh;
 			background: rgba(0, 0, 0, 0.35);
+
+			// Live brightness/contrast preview — filter only the image, not the crop
+			// handles/overlay. The backend reproduces this exact filter via sharp.
+			:deep(.vue-advanced-cropper__image) {
+				filter: var(--preview-filter, none);
+			}
 		}
 
 		&__tilt {

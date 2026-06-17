@@ -159,12 +159,12 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
-  // Apply crop + tilt edit params: reload the pristine original from the clone,
-  // reprocess it through the same pipeline upload uses, overwrite this work's
-  // variants in place (same id), store the params in gallery.json, then commit +
-  // push to cms-draft. brightness/contrast are preserved (those are #7). Always
-  // reprocesses from the original — never a previously rendered variant.
-  function updateEdit(id, { crop, tilt }) {
+  // Apply brightness/contrast/crop/tilt edit params: reload the pristine original
+  // from the clone, reprocess it through the same pipeline upload uses, overwrite
+  // this work's variants in place (same id), store all four params in gallery.json,
+  // then commit + push to cms-draft. Always reprocesses from the original — never a
+  // previously rendered variant — so re-editing is non-cumulative.
+  function updateEdit(id, { brightness, contrast, crop, tilt }) {
     return serialize(async () => {
       const gallery = await readGallery()
       const work = gallery.works.find((w) => w.id === id)
@@ -176,7 +176,7 @@ export function createRepo({ remoteUrl, workDir }) {
         throw new InvalidEditError('crop is out of bounds')
       }
 
-      const edit = { ...work.edit, crop, tilt }
+      const edit = { ...work.edit, brightness, contrast, crop, tilt }
       const { variants } = await processImage(originalBuffer, edit)
 
       await mkdir(join(workDir, OPT_DIR), { recursive: true })

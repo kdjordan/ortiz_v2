@@ -25,6 +25,11 @@ const DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
 // Straighten only — not free rotation. Anything beyond this is rejected.
 const MAX_TILT_DEGREES = 45
 
+// Brightness/contrast slider bounds. 1 is the identity (no-op); the range is a
+// gentle ±50% so the affine colour map never clips a normal photo to black/white.
+const MIN_LEVEL = 0.5
+const MAX_LEVEL = 1.5
+
 // Stored original extension -> content-type for serving it back to the editor.
 const ORIGINAL_MIME = {
   jpg: 'image/jpeg',
@@ -56,12 +61,19 @@ function validateCaption(body) {
   return null
 }
 
-// Structural validation of crop + tilt edit params (the image-relative bounds
-// check needs the original's dimensions, so it lives in repo.updateEdit). Returns
-// an error string, or null if the shape is valid.
+// Structural validation of brightness/contrast + crop + tilt edit params (the
+// image-relative crop bounds check needs the original's dimensions, so it lives in
+// repo.updateEdit). brightness/contrast are optional and default to 1 (identity)
+// when omitted. Returns an error string, or null if the shape is valid.
 function validateEdit(body) {
   if (!body || typeof body !== 'object') return 'invalid edit'
   const { crop, tilt } = body
+  for (const k of ['brightness', 'contrast']) {
+    const v = body[k]
+    if (v === undefined) continue
+    if (typeof v !== 'number' || !Number.isFinite(v)) return `${k} must be a number`
+    if (v < MIN_LEVEL || v > MAX_LEVEL) return `${k} must be within ${MIN_LEVEL}–${MAX_LEVEL}`
+  }
   if (typeof tilt !== 'number' || !Number.isFinite(tilt)) return 'tilt must be a number'
   if (Math.abs(tilt) > MAX_TILT_DEGREES) return `tilt must be within ±${MAX_TILT_DEGREES}°`
   if (crop !== null) {
@@ -157,15 +169,16 @@ export function buildApp(opts = {}) {
       }
     })
 
-    // Edit a work's crop + tilt -> reprocess variants from the pristine original
-    // -> commit to cms-draft. Non-destructive: params stored, original preserved.
+    // Edit a work's brightness/contrast/crop/tilt -> reprocess variants from the
+    // pristine original -> commit to cms-draft. Non-destructive: params stored,
+    // original preserved. brightness/contrast default to 1 (identity) when omitted.
     routes.put('/api/works/:id/edit', { preHandler: requireSession }, async (request, reply) => {
       const invalid = validateEdit(request.body)
       if (invalid) return reply.code(400).send({ error: invalid })
 
-      const { crop, tilt } = request.body
+      const { crop, tilt, brightness = 1, contrast = 1 } = request.body
       try {
-        const work = await repo.updateEdit(request.params.id, { crop, tilt })
+        const work = await repo.updateEdit(request.params.id, { brightness, contrast, crop, tilt })
         return { work }
       } catch (err) {
         if (err instanceof WorkNotFoundError) return reply.code(404).send({ error: 'work not found' })
