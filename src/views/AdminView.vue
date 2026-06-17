@@ -23,12 +23,27 @@
 			<div class="admin__bar">
 				<h1>Works ({{ works.length }})</h1>
 				<div class="admin__bar-actions">
+					<button
+						type="button"
+						class="admin__delete"
+						:disabled="discarding || !draft.hasChanges"
+						@click="discard"
+					>
+						{{ discarding ? 'Discarding…' : 'Discard draft' }}
+					</button>
 					<button type="button" :disabled="publishing" @click="publish">
 						{{ publishing ? 'Publishing…' : 'Publish' }}
 					</button>
 					<button type="button" @click="logout">Log out</button>
 				</div>
 			</div>
+			<p class="admin__draft">
+				{{
+					draft.hasChanges
+						? `${draft.pending} unpublished change${draft.pending === 1 ? '' : 's'}`
+						: 'No unpublished changes'
+				}}
+			</p>
 			<p v-if="publishMsg" class="admin__notice">{{ publishMsg }}</p>
 			<div class="admin__upload">
 				<label class="admin__upload-label">
@@ -167,6 +182,9 @@
 	const savingId = ref('');
 	const publishing = ref(false);
 	const publishMsg = ref('');
+	// How many unpublished commits cms-draft is ahead of main (#10).
+	const draft = ref({ pending: 0, hasChanges: false });
+	const discarding = ref(false);
 	const uploading = ref(false);
 	const deletingId = ref('');
 	// Index of the row currently being dragged for reorder (-1 when idle).
@@ -312,7 +330,45 @@
 		// `order` is the source of truth for sequence — sort by it so the admin list
 		// matches the published gallery.
 		works.value = (body.works ?? []).slice().sort((a, b) => a.order - b.order);
+		await refreshDraftStatus();
 		return true;
+	}
+
+	// Refresh the unpublished-changes count. Non-critical: on failure the last
+	// known status is left in place rather than surfacing an error.
+	async function refreshDraftStatus() {
+		try {
+			const res = await fetch('/api/draft/status', { credentials: 'same-origin' });
+			if (res.ok) draft.value = await res.json();
+		} catch {
+			// Ignore — keep the previous count.
+		}
+	}
+
+	// Discard all unpublished work (with a confirm step): resets cms-draft to main.
+	async function discard() {
+		const ok = window.confirm(
+			'Discard all unpublished changes? This reverts the draft to what is currently live and cannot be undone.',
+		);
+		if (!ok) return;
+		discarding.value = true;
+		publishMsg.value = '';
+		try {
+			const res = await fetch('/api/draft/discard', {
+				method: 'POST',
+				credentials: 'same-origin',
+			});
+			if (!res.ok) {
+				publishMsg.value = 'Could not discard the draft.';
+				return;
+			}
+			await loadWorks();
+			publishMsg.value = 'Draft discarded — back to what is currently live.';
+		} catch {
+			publishMsg.value = 'Could not reach the server.';
+		} finally {
+			discarding.value = false;
+		}
 	}
 
 	// --- Reorder (native HTML5 drag-and-drop) ---
@@ -359,6 +415,7 @@
 			}
 			const body = await res.json();
 			works.value = body.works;
+			await refreshDraftStatus();
 			publishMsg.value = 'Order saved to draft.';
 		} catch {
 			publishMsg.value = 'Could not reach the server.';
@@ -436,6 +493,7 @@
 			}
 			const body = await res.json();
 			work.caption = body.work.caption;
+			await refreshDraftStatus();
 			publishMsg.value = `Saved “${work.caption.holder}” to draft.`;
 		} catch {
 			publishMsg.value = 'Could not reach the server.';
@@ -490,6 +548,7 @@
 				method: 'POST',
 				credentials: 'same-origin',
 			});
+			if (res.ok) await refreshDraftStatus();
 			publishMsg.value = res.ok
 				? 'Published! The site is updating and will be live shortly.'
 				: 'Publish failed. Please try again.';
@@ -580,6 +639,11 @@
 		&__bar-actions {
 			display: flex;
 			gap: 0.75rem;
+		}
+
+		&__draft {
+			margin-bottom: 1rem;
+			opacity: 0.7;
 		}
 
 		&__notice {

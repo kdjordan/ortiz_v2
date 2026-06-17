@@ -283,6 +283,17 @@ export function buildApp(opts = {}) {
       return reply.code(201).send({ work })
     })
 
+    // How many unpublished changes are staged (commits cms-draft is ahead of main).
+    routes.get('/api/draft/status', { preHandler: requireSession }, async () => {
+      return repo.draftStatus()
+    })
+
+    // Discard all unpublished changes: reset cms-draft back to main.
+    routes.post('/api/draft/discard', { preHandler: requireSession }, async () => {
+      await repo.discardDraft()
+      return { ok: true }
+    })
+
     // Promote the draft: merge cms-draft -> main (triggers deploy in prod).
     routes.post('/api/publish', { preHandler: requireSession }, async () => {
       await repo.publish()

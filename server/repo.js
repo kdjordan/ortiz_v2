@@ -271,6 +271,36 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
+  // How far cms-draft is ahead of main, measured against the remote (the source
+  // of truth). This is a commit count, not a logical-change count: each CMS
+  // operation (upload/edit/reorder/delete) is one commit, so `pending` is the
+  // number of unpublished commits, which may exceed the number of distinct works
+  // touched. hasChanges is just pending > 0.
+  function draftStatus() {
+    return serialize(async () => {
+      await git.fetch('origin')
+      const out = await git.raw([
+        'rev-list',
+        '--count',
+        `origin/${MAIN_BRANCH}..origin/${DRAFT_BRANCH}`,
+      ])
+      const pending = parseInt(out.trim(), 10)
+      return { pending, hasChanges: pending > 0 }
+    })
+  }
+
+  // Throw away all unpublished work: point cms-draft back at the latest main and
+  // force-push it. Only the CMS writes cms-draft, so force-with-lease is safe
+  // (same assumption publish() relies on). After this, draftStatus() is 0.
+  function discardDraft() {
+    return serialize(async () => {
+      await git.fetch('origin')
+      await git.checkout(DRAFT_BRANCH)
+      await git.reset(['--hard', `origin/${MAIN_BRANCH}`])
+      await git.push(['--force-with-lease', 'origin', DRAFT_BRANCH])
+    })
+  }
+
   // Promote draft to live: rebase draft onto the latest main (safety against
   // out-of-band dev commits), then fast-forward main to draft and push.
   function publish() {
@@ -301,6 +331,8 @@ export function createRepo({ remoteUrl, workDir }) {
     readOriginal,
     reorderWorks,
     deleteWork,
+    draftStatus,
+    discardDraft,
     publish,
   }
 }
