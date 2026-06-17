@@ -1,0 +1,20 @@
+{
+  "works": [
+    {
+      "id": "alpha",
+      "order": 0,
+      "caption": { "holder": "Sculpture", "desc": "First test work", "year": 2018 },
+      "base": "/images/opt/alpha",
+      "original": "source-images/alpha.png",
+      "edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
+    },
+    {
+      "id": "beta",
+      "order": 1,
+      "caption": { "holder": "Relief", "desc": "Second test work", "year": 2019 },
+      "base": "/images/opt/beta",
+      "original": "source-images/beta.png",
+      "edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
+    }
+  ]
+}

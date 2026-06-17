@@ -1,0 +1,5 @@
+# Secrets — real values live only in deployment (slice #11/HITL)
+.env
+
+# Ephemeral working clone used by the git-backed CMS (slices #4+)
+work/

@@ -1,0 +1,36 @@
+# PRODUCTION stack for the Admin CMS — deploy as a SINGLE Coolify "Docker Compose"
+# application tracking `main`. Both services share this compose network, so nginx's
+# `proxy_pass http://api:3001` (see nginx.conf) resolves the API by service name.
+#
+# Coolify injects these as application secrets/env (NOT committed anywhere):
+#   ADMIN_PASSWORD_HASH  scrypt "saltHex:keyHex"  (server/.env.example one-liner)
+#   COOKIE_SECRET        long random string       (openssl rand -hex 32)
+#   DEPLOY_KEY           the repo's write-scoped SSH deploy *private* key
+#
+# Coolify also owns TLS + routing ortizmetals.com -> the `site` service (port 80)
+# via Traefik; no ports are published here.
+#
+# Publish flow: the API pushes content commits to `main` over SSH, which Coolify
+# sees and redeploys this app — rebuilding `site` from the new gallery/images.
+services:
+  api:
+    build:
+      context: ./server
+    environment:
+      GIT_REMOTE_URL: git@github.com:kdjordan/ortiz_v2.git
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      DEPLOY_KEY: ${DEPLOY_KEY}
+    expose:
+      - "3001"
+    restart: unless-stopped
+
+  site:
+    build:
+      context: .
+    depends_on:
+      - api
+    # Coolify/Traefik maps ortizmetals.com -> this service's port 80.
+    expose:
+      - "80"
+    restart: unless-stopped
