@@ -98,7 +98,8 @@ nav {
   }
 
   nav {
-    justify-content: flex-start;
+    align-self: flex-end;
+    justify-content: flex-end;
   }
 
   .link {
