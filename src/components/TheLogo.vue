@@ -22,8 +22,10 @@
 
 <style scoped lang="scss">
 	.logo {
-		position: fixed;
-		bottom: 2rem;
+		// Absolute (not fixed) so it sits relative to the page content — its base rests
+		// just below the last row of images rather than at the viewport edge.
+		position: absolute;
+		bottom: 8rem;
 		left: clamp(1rem, 4vw, 3rem);
 		width: clamp(2.4rem, 5vw, 4.5rem);
 		opacity: 0.28;

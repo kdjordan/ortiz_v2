@@ -24,6 +24,7 @@
 
 <style lang="scss">
 	.main-wrapper {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;

@@ -8,12 +8,9 @@
               <a href="tel:541-510-2182">541-510-2182</a> 
           </div>
       </div>
-      <div class="bottom__mid">
-          Sculpture | Design
-      </div>
       <div class="bottom__right">
           <div>
-              &#169; 2024 Ortiz Metals 
+              &#169; {{ year }} Ortiz Metals
           </div>
           <div>
               <a href="https://www.kevinjordan.dev" target="_blank" rel="noopener noreferrer nofollow">BUILT BY : Kevin Jordan</a>
@@ -22,12 +19,22 @@
   </div>
 </template>
 
+<script setup>
+	// Auto-updating copyright year (recomputes whenever the site rebuilds).
+	const year = new Date().getFullYear();
+</script>
+
 <style scoped lang="scss">
 a {
   cursor: pointer;
+  color: rgba(255, 233, 211, 0.5);
+  transition: color 0.2s ease;
+
+  &:hover {
+      color: rgba(255, 233, 211, 0.85);
+  }
 }
 .bottom {
-  border-top: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -43,15 +50,8 @@ a {
       align-items: flex-start;
   }
 
-
-  &__mid {
-      font-size: 1.4rem;
-      line-height: 1.8;
-      color: var(--bone);
-
-       @media (max-width: 35em) {
-          order: -1;
-      }
+  &__right {
+      text-align: left;
   }
 }
 

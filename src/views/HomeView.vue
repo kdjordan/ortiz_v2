@@ -152,13 +152,13 @@
 			.fromTo(
 				'.feature',
 				{ clipPath: 'inset(0 0 0 100%)' },
-				{ clipPath: 'inset(0 0 0 0%)', duration: 1, ease: 'power4.out' },
+				{ clipPath: 'inset(0 0 0 0%)', duration: 1.5, ease: 'power3.out' },
 				0.1
 			)
 			.fromTo(
 				'.feature img',
 				{ scale: 1.2 },
-				{ scale: 1, duration: 1.4, ease: 'power3.out', onComplete: startDrift },
+				{ scale: 1, duration: 2, ease: 'power3.out', onComplete: startDrift },
 				0.1
 			)
 			// tiles cascade in after the hero is established
@@ -169,11 +169,11 @@
 					y: 0,
 					opacity: 1,
 					clipPath: 'inset(0 0 0% 0)',
-					duration: 0.85,
-					stagger: 0.08,
-					ease: 'power3.out',
+					duration: 1.3,
+					stagger: 0.13,
+					ease: 'power2.out',
 				},
-				0.5
+				0.55
 			);
 	});
 </script>
