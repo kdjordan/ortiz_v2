@@ -4,7 +4,7 @@ import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
-import { createRepo, WorkNotFoundError } from './repo.js'
+import { createRepo, WorkNotFoundError, InvalidEditError } from './repo.js'
 import { processImage } from './images.js'
 
 const SESSION_COOKIE = 'session'
@@ -21,6 +21,17 @@ const ACCEPTED_TYPES = {
 }
 
 const DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
+
+// Straighten only — not free rotation. Anything beyond this is rejected.
+const MAX_TILT_DEGREES = 45
+
+// Stored original extension -> content-type for serving it back to the editor.
+const ORIGINAL_MIME = {
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+}
 
 // Constant-time verify of `password` against a stored `saltHex:derivedKeyHex` scrypt hash.
 function verifyPassword(password, storedHash) {
@@ -42,6 +53,24 @@ function validateCaption(body) {
   if (typeof holder !== 'string' || holder.trim() === '') return 'holder is required'
   if (typeof desc !== 'string' || desc.trim() === '') return 'desc is required'
   if (typeof year !== 'number' || !Number.isFinite(year)) return 'year must be a number'
+  return null
+}
+
+// Structural validation of crop + tilt edit params (the image-relative bounds
+// check needs the original's dimensions, so it lives in repo.updateEdit). Returns
+// an error string, or null if the shape is valid.
+function validateEdit(body) {
+  if (!body || typeof body !== 'object') return 'invalid edit'
+  const { crop, tilt } = body
+  if (typeof tilt !== 'number' || !Number.isFinite(tilt)) return 'tilt must be a number'
+  if (Math.abs(tilt) > MAX_TILT_DEGREES) return `tilt must be within ±${MAX_TILT_DEGREES}°`
+  if (crop !== null) {
+    if (typeof crop !== 'object') return 'crop must be an object or null'
+    for (const k of ['x', 'y', 'w', 'h']) {
+      if (typeof crop[k] !== 'number' || !Number.isFinite(crop[k])) return `crop.${k} must be a number`
+    }
+    if (crop.x < 0 || crop.y < 0 || crop.w <= 0 || crop.h <= 0) return 'crop has invalid dimensions'
+  }
   return null
 }
 
@@ -124,6 +153,35 @@ export function buildApp(opts = {}) {
         if (err instanceof WorkNotFoundError) {
           return reply.code(404).send({ error: 'work not found' })
         }
+        throw err
+      }
+    })
+
+    // Edit a work's crop + tilt -> reprocess variants from the pristine original
+    // -> commit to cms-draft. Non-destructive: params stored, original preserved.
+    routes.put('/api/works/:id/edit', { preHandler: requireSession }, async (request, reply) => {
+      const invalid = validateEdit(request.body)
+      if (invalid) return reply.code(400).send({ error: invalid })
+
+      const { crop, tilt } = request.body
+      try {
+        const work = await repo.updateEdit(request.params.id, { crop, tilt })
+        return { work }
+      } catch (err) {
+        if (err instanceof WorkNotFoundError) return reply.code(404).send({ error: 'work not found' })
+        if (err instanceof InvalidEditError) return reply.code(400).send({ error: err.message })
+        throw err
+      }
+    })
+
+    // Serve a work's pristine original so the editor can load it into the cropper
+    // (the crop rect must be captured in original-pixel space).
+    routes.get('/api/works/:id/original', { preHandler: requireSession }, async (request, reply) => {
+      try {
+        const { buffer, ext } = await repo.readOriginal(request.params.id)
+        return reply.type(ORIGINAL_MIME[ext] ?? 'application/octet-stream').send(buffer)
+      } catch (err) {
+        if (err instanceof WorkNotFoundError) return reply.code(404).send({ error: 'work not found' })
         throw err
       }
     })

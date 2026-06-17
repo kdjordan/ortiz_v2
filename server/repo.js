@@ -2,6 +2,8 @@ import { readFile, writeFile, mkdir, rm } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { simpleGit } from 'simple-git'
+import sharp from 'sharp'
+import { processImage, rotatedSize } from './images.js'
 
 const DRAFT_BRANCH = 'cms-draft'
 const MAIN_BRANCH = 'main'
@@ -19,6 +21,28 @@ export class WorkNotFoundError extends Error {
     this.name = 'WorkNotFoundError'
     this.id = id
   }
+}
+
+// Thrown by updateEdit when the params can't be applied to the actual image
+// (e.g. a crop rectangle outside the rotated bounds); maps to a 400.
+export class InvalidEditError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'InvalidEditError'
+  }
+}
+
+// Is the crop rectangle fully inside the rotated bounding box? The cropper sizes
+// its canvas by truncating the float bbox, so floor() is the authoritative bound
+// (sharp's rotated canvas ceils, i.e. is never smaller — so a crop valid here
+// always fits the rendered image).
+function cropWithinBounds(crop, bbox) {
+  return (
+    crop.x >= 0 &&
+    crop.y >= 0 &&
+    crop.x + crop.w <= Math.floor(bbox.width) &&
+    crop.y + crop.h <= Math.floor(bbox.height)
+  )
 }
 
 // Git-backed persistence for the CMS. Wraps an ephemeral working clone of the
@@ -135,6 +159,53 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
+  // Apply crop + tilt edit params: reload the pristine original from the clone,
+  // reprocess it through the same pipeline upload uses, overwrite this work's
+  // variants in place (same id), store the params in gallery.json, then commit +
+  // push to cms-draft. brightness/contrast are preserved (those are #7). Always
+  // reprocesses from the original — never a previously rendered variant.
+  function updateEdit(id, { crop, tilt }) {
+    return serialize(async () => {
+      const gallery = await readGallery()
+      const work = gallery.works.find((w) => w.id === id)
+      if (!work) throw new WorkNotFoundError(id)
+
+      const originalBuffer = await readFile(join(workDir, work.original))
+      const meta = await sharp(originalBuffer).metadata()
+      if (crop && !cropWithinBounds(crop, rotatedSize(meta, tilt))) {
+        throw new InvalidEditError('crop is out of bounds')
+      }
+
+      const edit = { ...work.edit, crop, tilt }
+      const { variants } = await processImage(originalBuffer, edit)
+
+      await mkdir(join(workDir, OPT_DIR), { recursive: true })
+      for (const v of variants) {
+        await writeFile(join(workDir, OPT_DIR, `${id}-${v.width}.${v.ext}`), v.buffer)
+      }
+
+      work.edit = edit
+      await writeFile(galleryFile(), `${JSON.stringify(gallery, null, 2)}\n`)
+
+      await git.add('.')
+      await git.commit(`CMS: update edit for ${id}`)
+      await git.push(['origin', DRAFT_BRANCH])
+      return work
+    })
+  }
+
+  // The pristine original bytes for a work (loaded into the cropper for editing),
+  // plus its file extension so the HTTP layer can set the right content-type.
+  function readOriginal(id) {
+    return serialize(async () => {
+      const gallery = await readGallery()
+      const work = gallery.works.find((w) => w.id === id)
+      if (!work) throw new WorkNotFoundError(id)
+      const buffer = await readFile(join(workDir, work.original))
+      return { buffer, ext: work.original.split('.').pop() }
+    })
+  }
+
   // Promote draft to live: rebase draft onto the latest main (safety against
   // out-of-band dev commits), then fast-forward main to draft and push.
   function publish() {
@@ -156,5 +227,5 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
-  return { init, readWorks, updateCaption, addWork, publish }
+  return { init, readWorks, updateCaption, addWork, updateEdit, readOriginal, publish }
 }

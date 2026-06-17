@@ -68,14 +68,51 @@
 					>
 						{{ savingId === work.id ? 'Saving…' : 'Save' }}
 					</button>
+					<button type="button" class="admin__save" @click="openEditor(work)">
+						Edit photo
+					</button>
 				</li>
 			</ul>
+
+			<!-- Crop + tilt editor -->
+			<div v-if="editingId" class="admin__editor">
+				<div class="admin__editor-stage">
+					<Cropper
+						:key="editingId"
+						ref="cropperRef"
+						class="admin__cropper"
+						:src="editorSrc"
+						:canvas="false"
+						@change="onCropChange"
+					/>
+				</div>
+				<label class="admin__tilt">
+					Straighten
+					<input
+						v-model.number="tilt"
+						type="range"
+						min="-45"
+						max="45"
+						step="0.5"
+						@input="onTiltInput"
+					/>
+					<span class="admin__tilt-val">{{ tilt }}°</span>
+				</label>
+				<div class="admin__editor-actions">
+					<button type="button" :disabled="savingEdit" @click="saveEdit">
+						{{ savingEdit ? 'Saving…' : 'Save edit' }}
+					</button>
+					<button type="button" :disabled="savingEdit" @click="closeEditor">Cancel</button>
+				</div>
+			</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
 	import { onMounted, ref } from 'vue';
+	import { Cropper } from 'vue-advanced-cropper';
+	import 'vue-advanced-cropper/dist/style.css';
 
 	const authed = ref(false);
 	const works = ref([]);
@@ -86,6 +123,86 @@
 	const publishing = ref(false);
 	const publishMsg = ref('');
 	const uploading = ref(false);
+
+	// --- Crop + tilt editor (#6) ---
+	// The cropper loads the pristine original so the crop rectangle it emits is in
+	// original-pixel space. Convention: tilt (rotate) then crop — the same order the
+	// server's applyEdits uses — so this preview reproduces the saved result.
+	const editingId = ref('');
+	const editorSrc = ref('');
+	const tilt = ref(0);
+	const savingEdit = ref(false);
+	const cropperRef = ref(null);
+	// The cropper's rotate() is relative; track the angle we've applied so a slider
+	// move only rotates by the delta to reach the new absolute straighten angle.
+	let appliedTilt = 0;
+	// Latest crop rectangle from the cropper, in rotated-image pixel coordinates.
+	let cropCoords = null;
+
+	function openEditor(work) {
+		editingId.value = work.id;
+		tilt.value = 0;
+		appliedTilt = 0;
+		cropCoords = null;
+		// Same-origin (via the dev proxy); a fresh Cropper mounts per work (keyed).
+		editorSrc.value = `/api/works/${work.id}/original`;
+	}
+
+	function closeEditor() {
+		editingId.value = '';
+		editorSrc.value = '';
+		cropCoords = null;
+	}
+
+	// vue-advanced-cropper emits coordinates {left, top, width, height} in the
+	// rotated image's pixel space — exactly what the server extracts after rotating.
+	function onCropChange({ coordinates }) {
+		cropCoords = coordinates;
+	}
+
+	// Drive the cropper's rotation from the straighten slider (relative delta).
+	function onTiltInput() {
+		const delta = tilt.value - appliedTilt;
+		if (delta && cropperRef.value) {
+			cropperRef.value.rotate(delta);
+			appliedTilt = tilt.value;
+		}
+	}
+
+	// Save crop + tilt to cms-draft: the backend reprocesses the master from the
+	// pristine original and regenerates the variant set.
+	async function saveEdit() {
+		if (!editingId.value) return;
+		savingEdit.value = true;
+		publishMsg.value = '';
+		try {
+			const crop = cropCoords
+				? {
+						x: Math.round(cropCoords.left),
+						y: Math.round(cropCoords.top),
+						w: Math.round(cropCoords.width),
+						h: Math.round(cropCoords.height),
+					}
+				: null;
+			const res = await fetch(`/api/works/${editingId.value}/edit`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'same-origin',
+				body: JSON.stringify({ crop, tilt: tilt.value }),
+			});
+			if (!res.ok) {
+				publishMsg.value = 'Could not save the edit.';
+				return;
+			}
+			closeEditor();
+			await loadWorks();
+			publishMsg.value = 'Edit saved to draft.';
+		} catch {
+			publishMsg.value = 'Could not reach the server.';
+		} finally {
+			savingEdit.value = false;
+		}
+	}
 
 	// Fetch the works list; returns true if the session is valid (200), false on 401.
 	async function loadWorks() {
@@ -340,6 +457,45 @@
 
 		&__save {
 			padding: 0.4rem 0.75rem;
+		}
+
+		&__editor {
+			margin-top: 1.5rem;
+			padding-top: 1.5rem;
+			border-top: 1px solid var(--line);
+			display: flex;
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+		&__editor-stage {
+			max-height: 60vh;
+		}
+
+		&__cropper {
+			max-height: 60vh;
+			background: rgba(0, 0, 0, 0.35);
+		}
+
+		&__tilt {
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+
+			input[type='range'] {
+				flex: 1;
+			}
+		}
+
+		&__tilt-val {
+			min-width: 3.5rem;
+			text-align: right;
+			color: var(--ember);
+		}
+
+		&__editor-actions {
+			display: flex;
+			gap: 0.75rem;
 		}
 	}
 </style>
