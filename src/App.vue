@@ -1,16 +1,25 @@
 <template>
 	<div class="main-wrapper">
-		<TheHeader />
-		<TheLogo />
+		<!-- Admin + the throwaway editor lab run as full-screen apps without the public
+		     marketing header/logo/footer. -->
+		<template v-if="!bare">
+			<TheHeader />
+			<TheLogo />
+		</template>
 		<RouterView />
-		<TheFooter />
+		<TheFooter v-if="!bare" />
 	</div>
 </template>
 
 <script setup>
+	import { computed } from 'vue';
+	import { useRoute } from 'vue-router';
 	import TheFooter from '@/components/TheFooter.vue';
 	import TheHeader from '@/components/TheHeader.vue';
 	import TheLogo from '@/components/TheLogo.vue';
+
+	const route = useRoute();
+	const bare = computed(() => route.path === '/admin' || route.path === '/editor-lab');
 </script>
 
 <style lang="scss">
