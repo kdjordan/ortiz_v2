@@ -57,9 +57,47 @@
 							loading="lazy"
 						/>
 						<span class="admin__work-title">{{ work.caption.holder || 'Untitled' }}</span>
-						<span class="admin__work-order">{{ work.order }}</span>
+						<span
+								class="admin__work-spot"
+								:class="{ 'admin__work-spot--unplaced': work.order >= homeZones.length }"
+							>
+								{{ work.order < homeZones.length ? work.order + 1 : 'Unplaced' }}
+							</span>
 					</li>
 				</ul>
+
+				<div class="admin__map">
+					<p class="admin__map-label">Homepage layout</p>
+					<div class="admin__map-grid">
+						<button
+							v-for="z in homeZones"
+							:key="z.spot"
+							type="button"
+							class="admin__zone"
+							:class="{ 'admin__zone--on': workAtSpot(z.spot)?.id === editingId }"
+							:style="{ gridColumn: z.col, gridRow: z.row }"
+							:title="workAtSpot(z.spot)?.caption.holder || `Spot ${z.spot} — empty`"
+							@click="workAtSpot(z.spot) && openEditor(workAtSpot(z.spot))"
+						>
+							<Preview
+								v-if="workAtSpot(z.spot)?.id === editingId && cropResult?.coordinates && !loadingImage"
+								class="admin__zone-live"
+								:style="{ '--preview-filter': previewFilter }"
+								fill
+								:image="cropResult.image"
+								:coordinates="cropResult.coordinates"
+							/>
+							<img
+								v-else-if="workAtSpot(z.spot)"
+								class="admin__zone-img"
+								:src="previewSrc(workAtSpot(z.spot).id)"
+								alt=""
+								loading="lazy"
+							/>
+							<span class="admin__zone-num">{{ z.spot }}</span>
+						</button>
+					</div>
+				</div>
 
 				<div class="admin__rail-foot">
 					<p class="admin__draft">
@@ -91,23 +129,40 @@
 				</div>
 
 				<div v-else class="admin__detail">
-					<!-- Photo editor — fixed output frame, image pans/zooms behind it; the
-					     frame IS the published result. Tool rail: Crop / Straighten / Light. -->
-					<div class="admin__editor">
-						<div class="admin__editor-rail">
+					<!-- Metadata up top -->
+					<div class="admin__meta">
+						<div class="admin__caption">
+							<label>
+								Title
+								<input v-model="currentWork.caption.holder" aria-label="Title" />
+							</label>
+							<label>
+								Description
+								<input v-model="currentWork.caption.desc" aria-label="Description" />
+							</label>
+							<label>
+								Year
+								<input v-model.number="currentWork.caption.year" type="number" aria-label="Year" />
+							</label>
+						</div>
+						<div class="admin__detail-actions">
+							<button type="button" :disabled="savingEdit" @click="saveAll">
+								{{ savingEdit ? 'Saving…' : 'Save' }}
+							</button>
 							<button
-								v-for="t in editorTools"
-								:key="t.id"
 								type="button"
-								class="admin__tool"
-								:class="{ 'admin__tool--on': tool === t.id }"
-								@click="tool = t.id"
+								class="admin__delete"
+								:disabled="deletingId === currentWork.id"
+								@click="removeWork(currentWork)"
 							>
-								<span class="admin__tool-ico">{{ t.icon }}</span>
-								<span class="admin__tool-name">{{ t.name }}</span>
+								{{ deletingId === currentWork.id ? 'Deleting…' : 'Delete work' }}
 							</button>
 						</div>
+					</div>
 
+					<!-- Photo editor — image, contextual controls, then the tool tabs as a
+					     long skinny bar across the bottom. The frame IS the published result. -->
+					<div class="admin__editor">
 						<div class="admin__editor-main">
 							<div class="admin__editor-stage" :style="{ '--preview-filter': previewFilter }">
 								<Cropper
@@ -123,6 +178,10 @@
 									@ready="onCropperReady"
 									@change="onCropChange"
 								/>
+								<div v-if="loadingImage" class="admin__editor-loading">
+									<span class="admin__spinner" aria-hidden="true"></span>
+									<span>Rendering preview…</span>
+								</div>
 							</div>
 							<p class="admin__editor-hint">
 								Drag the photo to position · scroll to zoom · the frame is exactly what publishes
@@ -147,56 +206,82 @@
 									</span>
 								</template>
 								<template v-else-if="tool === 'straighten'">
-									<label class="admin__tilt">
-										Straighten
-										<input v-model.number="tilt" type="range" min="-45" max="45" step="0.5" @input="onTiltInput" />
-										<span class="admin__tilt-val">{{ tilt }}°</span>
-									</label>
+									<WheelControl
+										v-model="tilt"
+										label="Straighten"
+										:step="0.1"
+										:px-per-unit="10"
+										:minor-tick="1"
+										:major-tick="5"
+										:decimals="1"
+										suffix="°"
+										@change="onTiltInput"
+									/>
 								</template>
 								<template v-else>
-									<label class="admin__tilt">
-										Brightness
-										<input v-model.number="brightness" type="range" min="0.5" max="1.5" step="0.01" />
-										<span class="admin__tilt-val">{{ brightness.toFixed(2) }}</span>
-									</label>
-									<label class="admin__tilt">
-										Contrast
-										<input v-model.number="contrast" type="range" min="0.5" max="1.5" step="0.01" />
-										<span class="admin__tilt-val">{{ contrast.toFixed(2) }}</span>
-									</label>
+									<div class="admin__light">
+										<WheelControl
+											v-model="brightness"
+											label="Brightness"
+											:min="0.5"
+											:max="1.5"
+											:step="0.01"
+											:px-per-unit="300"
+											:minor-tick="0.05"
+											:major-tick="0.25"
+											:decimals="2"
+										/>
+										<WheelControl
+											v-model="contrast"
+											label="Contrast"
+											:min="0.5"
+											:max="1.5"
+											:step="0.01"
+											:px-per-unit="300"
+											:minor-tick="0.05"
+											:major-tick="0.25"
+											:decimals="2"
+										/>
+									</div>
 								</template>
 							</div>
+
+							<div class="admin__spot-pick">
+								<span class="admin__ctl-label">Homepage spot</span>
+								<button
+									v-for="z in homeZones"
+									:key="z.spot"
+									type="button"
+									class="admin__chip"
+									:class="{ 'admin__chip--on': currentSpot === z.spot }"
+									@click="assignSpot(z.spot)"
+								>
+									{{ z.spot }}
+								</button>
+								<button
+									type="button"
+									class="admin__chip"
+									:class="{ 'admin__chip--on': currentSpot === null }"
+									@click="unplace"
+								>
+									Unplaced
+								</button>
+							</div>
 						</div>
-					</div>
-
-					<!-- Caption for the selected work -->
-					<div class="admin__caption">
-						<label>
-							Title
-							<input v-model="currentWork.caption.holder" aria-label="Title" />
-						</label>
-						<label>
-							Description
-							<input v-model="currentWork.caption.desc" aria-label="Description" />
-						</label>
-						<label>
-							Year
-							<input v-model.number="currentWork.caption.year" type="number" aria-label="Year" />
-						</label>
-					</div>
-
-					<div class="admin__detail-actions">
-						<button type="button" :disabled="savingEdit" @click="saveAll">
-							{{ savingEdit ? 'Saving…' : 'Save' }}
-						</button>
-						<button
-							type="button"
-							class="admin__delete"
-							:disabled="deletingId === currentWork.id"
-							@click="removeWork(currentWork)"
-						>
-							{{ deletingId === currentWork.id ? 'Deleting…' : 'Delete work' }}
-						</button>
+						<!-- Tool tabs — long skinny buttons across the bottom -->
+						<div class="admin__editor-rail">
+							<button
+								v-for="t in editorTools"
+								:key="t.id"
+								type="button"
+								class="admin__tool"
+								:class="{ 'admin__tool--on': tool === t.id }"
+								@click="tool = t.id"
+							>
+								<span class="admin__tool-ico">{{ t.icon }}</span>
+								<span class="admin__tool-name">{{ t.name }}</span>
+							</button>
+						</div>
 					</div>
 				</div>
 			</main>
@@ -206,8 +291,9 @@
 
 <script setup>
 	import { computed, nextTick, onMounted, ref } from 'vue';
-	import { Cropper } from 'vue-advanced-cropper';
+	import { Cropper, Preview } from 'vue-advanced-cropper';
 	import 'vue-advanced-cropper/dist/style.css';
+	import WheelControl from '@/components/WheelControl.vue';
 
 	const authed = ref(false);
 	const works = ref([]);
@@ -244,12 +330,18 @@
 		() => `brightness(${brightness.value}) contrast(${contrast.value})`,
 	);
 	const savingEdit = ref(false);
+	// True from when an image src is assigned until the cropper reports it loaded —
+	// HEIC works transcode to JPEG server-side, so the stage would otherwise sit blank.
+	const loadingImage = ref(false);
 	const cropperRef = ref(null);
 	// The cropper's rotate() is relative; track the applied angle so a slider move
 	// only rotates by the delta to reach the new absolute straighten angle.
 	let appliedTilt = 0;
 	// Latest crop rectangle from the cropper, in rotated-image pixel coordinates.
 	let cropCoords = null;
+	// The cropper's full live result ({ image, coordinates }) — fed to the <Preview>
+	// in the work's homepage zone so the wireframe tile updates live while editing.
+	const cropResult = ref(null);
 	// The work's stored crop, replayed into the cropper once it's ready (#9).
 	let storedCrop = null;
 	// While replaying a stored edit, ignore the cropper's auto-fit @change events.
@@ -273,6 +365,32 @@
 		{ label: '3:4', value: 3 / 4 },
 		{ label: '16:9', value: 16 / 9 },
 	];
+	// The 8 fixed homepage spots, in the exact grid placement HomeView uses (spot 1 =
+	// feature/hero, spots 2–8 = the asymmetric tiles). `col`/`row` drive the nav
+	// wireframe; `ar` is each zone's real rendered aspect ratio (measured on the live
+	// homepage at a typical desktop) so the editor frame previews how a photo will be
+	// cropped in that slot. Spot N maps to `order` N−1; orders 8+ are unplaced.
+	const homeZones = [
+		{ spot: 1, col: '1 / 8', row: '1 / 8', ar: 1.74 },
+		{ spot: 2, col: '8 / 13', row: '1 / 4', ar: 3.0 },
+		{ spot: 3, col: '8 / 11', row: '4 / 8', ar: 1.3 },
+		{ spot: 4, col: '11 / 13', row: '4 / 6', ar: 1.8 },
+		{ spot: 5, col: '11 / 13', row: '6 / 8', ar: 1.8 },
+		{ spot: 6, col: '1 / 4', row: '8 / 12', ar: 1.3 },
+		{ spot: 7, col: '4 / 8', row: '8 / 12', ar: 1.76 },
+		{ spot: 8, col: '8 / 13', row: '8 / 12', ar: 2.21 },
+	];
+	// The work occupying a given homepage spot (works.value is order-sorted, so the
+	// work at order N−1 sits in spot N), or null if that spot is empty.
+	function workAtSpot(spot) {
+		return works.value.find((w) => w.order === spot - 1) || null;
+	}
+	// The spot the selected work currently fills (1–8), or null when it's unplaced.
+	const currentSpot = computed(() => {
+		const w = currentWork.value;
+		if (!w || w.order >= homeZones.length) return null;
+		return w.order + 1;
+	});
 	// Fixed stencil: it doesn't move/resize — the user moves the image instead.
 	const stencilProps = computed(() => ({
 		movable: false,
@@ -299,10 +417,50 @@
 		cropperRef.value?.zoom(factor);
 	}
 
+	// Assign the selected work to homepage spot N: swap it with whoever holds that spot
+	// (so only those two move), then snap the editor frame to the zone's aspect so the
+	// preview shows how the photo will be cropped there. Persisted via the order endpoint.
+	function assignSpot(spot) {
+		const work = currentWork.value;
+		if (!work) return;
+		const to = spot - 1;
+		// No filled spot here (gallery has fewer works than the 8 fixed spots) — don't
+		// touch the frame either, or it would look like the work moved when it didn't.
+		if (to >= works.value.length) return;
+		const next = works.value.slice();
+		const from = next.findIndex((w) => w.id === work.id);
+		if (from !== to) {
+			[next[from], next[to]] = [next[to], next[from]];
+			works.value = next;
+			persistOrder();
+		}
+		// Re-key the cropper only when the frame aspect actually changes, so re-clicking
+		// the current spot doesn't remount and discard an in-progress crop.
+		if (aspect.value !== homeZones[spot - 1].ar) setAspect(homeZones[spot - 1].ar);
+	}
+
+	// Take the selected work off the homepage: swap it with the first unplaced work
+	// (order ≥ 8) so the 8 fixed spots stay filled. No-op if it's already unplaced or
+	// there's no overflow work to pull onto the board.
+	function unplace() {
+		const work = currentWork.value;
+		if (!work || work.order >= homeZones.length) return;
+		const next = works.value.slice();
+		const overflow = next.findIndex((w) => w.order >= homeZones.length);
+		if (overflow === -1) return;
+		const from = next.findIndex((w) => w.id === work.id);
+		[next[from], next[overflow]] = [next[overflow], next[from]];
+		works.value = next;
+		persistOrder();
+	}
+
 	// Select + open a work in the editor, rehydrating every control from its stored
 	// params so adjustments continue non-destructively from the pristine original (#9).
 	function openEditor(work) {
 		editingId.value = work.id;
+		// Frame to the work's homepage zone so the preview shows how it'll be cropped
+		// there; unplaced works fall back to their own aspect ('original').
+		aspect.value = work.order < homeZones.length ? homeZones[work.order].ar : 'original';
 		const edit = work.edit ?? {};
 		tilt.value = edit.tilt ?? 0;
 		appliedTilt = 0;
@@ -310,7 +468,9 @@
 		contrast.value = edit.contrast ?? 1;
 		storedCrop = edit.crop ?? null;
 		cropCoords = storedCrop;
+		cropResult.value = null; // drop the prior work's live preview until this one is ready
 		initializing = true;
+		loadingImage.value = true;
 		editorSrc.value = `/api/works/${work.id}/original`;
 	}
 
@@ -328,6 +488,7 @@
 				{ transitions: false },
 			);
 		}
+		loadingImage.value = false;
 		nextTick(() => {
 			initializing = false;
 		});
@@ -335,18 +496,23 @@
 
 	// vue-advanced-cropper emits coordinates {left, top, width, height} in the
 	// rotated image's pixel space — exactly what the server extracts after rotating.
-	function onCropChange({ coordinates }) {
+	function onCropChange(result) {
+		// Feed the live zone preview on every change (including the rehydration replay).
+		cropResult.value = result;
 		if (initializing) return;
-		cropCoords = coordinates;
+		cropCoords = result.coordinates;
 	}
 
-	// Drive the cropper's rotation from the straighten slider (relative delta).
+	// Bring the cropper to the current absolute `tilt` by rotating the remaining delta.
+	// `transitions: false` is essential: rotate() no-ops while a transition is active, so
+	// the default (animated) call would drop rapid wheel updates — pass false to apply
+	// every delta instantly, which also keeps the cover-the-stencil re-fit scale steady.
 	function onTiltInput() {
+		if (!cropperRef.value) return;
 		const delta = tilt.value - appliedTilt;
-		if (delta && cropperRef.value) {
-			cropperRef.value.rotate(delta);
-			appliedTilt = tilt.value;
-		}
+		if (!delta) return;
+		cropperRef.value.rotate(delta, { transitions: false });
+		appliedTilt = tilt.value;
 	}
 
 	// Save the selected work's caption + photo edit to cms-draft.
@@ -798,9 +964,19 @@
 			font-size: 0.9rem;
 		}
 
-		&__work-order {
-			opacity: 0.45;
-			font-size: 0.8rem;
+		&__work-spot {
+			flex-shrink: 0;
+			font-size: 0.75rem;
+			color: var(--ember);
+			opacity: 0.85;
+		}
+
+		&__work-spot--unplaced {
+			color: inherit;
+			opacity: 0.4;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			font-size: 0.62rem;
 		}
 
 		&__rail-foot {
@@ -815,6 +991,89 @@
 			margin: 0 0 0.25rem;
 			font-size: 0.8rem;
 			opacity: 0.7;
+		}
+
+		// --- Homepage layout wireframe (nav) ---
+		// Same 12-col × 11-row grid + zone spans as HomeView, so the mini map mirrors the
+		// real collage proportions. Cell aspect ≈ 1.74, hence the grid aspect-ratio.
+		&__map {
+			padding: 0.75rem 1rem;
+			border-top: 1px solid var(--line);
+		}
+
+		&__map-label {
+			margin: 0 0 0.5rem;
+			font-size: 0.72rem;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			opacity: 0.5;
+		}
+
+		&__map-grid {
+			display: grid;
+			grid-template-columns: repeat(12, 1fr);
+			grid-template-rows: repeat(11, 1fr);
+			gap: 2px;
+			aspect-ratio: 1.9;
+			width: 100%;
+		}
+
+		&__zone {
+			position: relative;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			overflow: hidden;
+			padding: 0;
+			min-height: 0;
+			border: 1px solid var(--line);
+			border-radius: 2px;
+			background: rgba(255, 255, 255, 0.04);
+			cursor: pointer;
+		}
+
+		&__zone--on {
+			border-color: var(--ember);
+			outline: 1px solid var(--ember);
+		}
+
+		&__zone-img {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			opacity: 0.7;
+		}
+
+		// Live crop preview (vue-advanced-cropper <Preview fill>) for the work being
+		// edited; mirror the editor's brightness/contrast filter onto its image.
+		&__zone-live {
+			position: absolute;
+			inset: 0;
+
+			:deep(.vue-preview__image) {
+				filter: var(--preview-filter, none);
+			}
+		}
+
+		// Scrim so the spot number stays legible over any image.
+		&__zone::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.4);
+			pointer-events: none;
+		}
+
+		&__zone-num {
+			position: relative;
+			z-index: 1;
+			font-family: var(--font-antonio);
+			font-size: 0.95rem;
+			font-weight: 700;
+			color: var(--bone);
+			text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 		}
 
 		// --- Main / detail ---
@@ -840,14 +1099,25 @@
 
 		&__detail {
 			max-width: 880px;
+			margin: 0 auto;
 			display: flex;
 			flex-direction: column;
 			gap: 1.25rem;
 		}
 
+		// Metadata row at the top of the editor: fields on the left, actions on the right.
+		&__meta {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: flex-end;
+			justify-content: space-between;
+			gap: 1rem;
+		}
+
 		&__caption {
 			display: flex;
 			flex-wrap: wrap;
+			justify-content: flex-start;
 			gap: 1rem;
 
 			label {
@@ -869,6 +1139,7 @@
 
 		&__detail-actions {
 			display: flex;
+			justify-content: flex-end;
 			gap: 0.75rem;
 		}
 
@@ -876,40 +1147,45 @@
 			border-color: rgba(210, 105, 63, 0.55);
 		}
 
-		// --- Editor (fixed frame + tool rail) ---
+		// --- Editor (image, contextual controls, tool tabs across the bottom) ---
 		&__editor {
 			display: flex;
+			flex-direction: column;
 			gap: 1rem;
 		}
 
+		// Tool tabs: long skinny buttons spanning the full width across the bottom.
 		&__editor-rail {
 			display: flex;
-			flex-direction: column;
+			flex-direction: row;
 			gap: 0.5rem;
-			flex: 0 0 5rem;
 		}
 
 		&__tool {
+			flex: 1;
 			display: flex;
-			flex-direction: column;
+			flex-direction: row;
 			align-items: center;
-			gap: 0.2rem;
-			padding: 0.6rem 0.2rem;
+			justify-content: center;
+			gap: 0.45rem;
+			padding: 0.55rem 0.75rem;
 			border: 1px solid var(--line);
 			border-radius: 8px;
 			background: transparent;
 			color: inherit;
 			cursor: pointer;
-			font-size: 0.7rem;
+			font-size: 0.8rem;
 		}
 
-		&__tool--on {
+		// Compound selector so it outranks the global `.admin button` rule (which would
+		// otherwise reset border/colour back to the default line colour).
+		&__tool.admin__tool--on {
 			border-color: var(--ember);
 			color: var(--ember);
 		}
 
 		&__tool-ico {
-			font-size: 1.3rem;
+			font-size: 1rem;
 		}
 
 		&__editor-main {
@@ -921,11 +1197,44 @@
 		}
 
 		&__editor-stage {
-			max-height: 60vh;
+			position: relative;
+			height: 60vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		&__editor-loading {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 0.75rem;
+			background: rgba(0, 0, 0, 0.35);
+			font-size: 0.85rem;
+			opacity: 0.85;
+		}
+
+		&__spinner {
+			width: 2rem;
+			height: 2rem;
+			border-radius: 50%;
+			border: 3px solid rgba(255, 246, 234, 0.2);
+			border-top-color: var(--ember);
+			animation: admin-spin 0.7s linear infinite;
+		}
+
+		@keyframes admin-spin {
+			to {
+				transform: rotate(360deg);
+			}
 		}
 
 		&__cropper {
-			max-height: 60vh;
+			width: 100%;
+			height: 100%;
 			background: rgba(0, 0, 0, 0.35);
 
 			// Live brightness/contrast preview — filter both the faded background image
@@ -951,6 +1260,14 @@
 			min-height: 2.5rem;
 		}
 
+		&__spot-pick {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 0.4rem;
+			margin-top: 0.75rem;
+		}
+
 		&__ctl-label {
 			opacity: 0.6;
 			font-size: 0.85rem;
@@ -971,26 +1288,19 @@
 			cursor: pointer;
 		}
 
-		&__chip--on {
+		// Filled active state, with a compound selector so it outranks `.admin button`.
+		&__chip.admin__chip--on {
+			background: var(--ember);
 			border-color: var(--ember);
-			color: var(--ember);
+			color: #1a1413;
 		}
 
-		&__tilt {
+		// Light tool: brightness + contrast wheels stacked.
+		&__light {
 			display: flex;
-			align-items: center;
-			gap: 0.75rem;
-			font-size: 0.85rem;
-
-			input[type='range'] {
-				flex: 1;
-			}
-		}
-
-		&__tilt-val {
-			min-width: 3.5rem;
-			text-align: right;
-			color: var(--ember);
+			flex-direction: column;
+			gap: 0.6rem;
+			width: 100%;
 		}
 	}
 </style>

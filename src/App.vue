@@ -19,7 +19,7 @@
 	import TheLogo from '@/components/TheLogo.vue';
 
 	const route = useRoute();
-	const bare = computed(() => route.path === '/admin' || route.path === '/editor-lab');
+	const bare = computed(() => route.path === '/admin');
 </script>
 
 <style lang="scss">
