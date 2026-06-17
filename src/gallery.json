@@ -1,68 +1,140 @@
 {
-	"works": [
-		{
-			"id": "wall-2",
-			"order": 0,
-			"caption": { "holder": "Sculpture", "desc": "Interior wall sculpture with radial relief pattern", "year": 2018 },
-			"base": "/images/opt/wall-2",
-			"original": "source-images/wall-2.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		},
-		{
-			"id": "wall-2-1",
-			"order": 1,
-			"caption": { "holder": "Relief", "desc": "Interior wall relief sculpture, detail view", "year": 2018 },
-			"base": "/images/opt/wall-2-1",
-			"original": "source-images/wall-2-1.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		},
-		{
-			"id": "firepit",
-			"order": 2,
-			"caption": { "holder": "Firepit", "desc": "Lord of the Rings themed firepit", "year": 2018 },
-			"base": "/images/opt/firepit",
-			"original": "source-images/firepit.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		},
-		{
-			"id": "platform",
-			"order": 3,
-			"caption": { "holder": "Dive", "desc": "Diving platform at private residence", "year": 2018 },
-			"base": "/images/opt/platform",
-			"original": "source-images/platform.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		},
-		{
-			"id": "austin-wall",
-			"order": 4,
-			"caption": { "holder": "Sculpture", "desc": "Large interior wall sculpture installation", "year": 2018 },
-			"base": "/images/opt/austin-wall",
-			"original": "source-images/austin-wall.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		},
-		{
-			"id": "symbiosis-2",
-			"order": 5,
-			"caption": { "holder": "Symbiosis", "desc": "Symbiosis, outdoor public sculpture", "year": 2018 },
-			"base": "/images/opt/symbiosis-2",
-			"original": "source-images/symbiosis-2.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		},
-		{
-			"id": "symbiosis",
-			"order": 6,
-			"caption": { "holder": "Symbiosis", "desc": "Symbiosis outdoor public sculpture, alternate view", "year": 2018 },
-			"base": "/images/opt/symbiosis",
-			"original": "source-images/symbiosis.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		},
-		{
-			"id": "bench",
-			"order": 7,
-			"caption": { "holder": "Bench", "desc": "Custom outdoor sculptural bench", "year": 2018 },
-			"base": "/images/opt/bench",
-			"original": "source-images/bench.png",
-			"edit": { "brightness": 1, "contrast": 1, "crop": null, "tilt": 0 }
-		}
-	]
+  "works": [
+    {
+      "id": "wall-2",
+      "order": 0,
+      "caption": {
+        "holder": "Sculpture",
+        "desc": "Interior wall sculpture with radial relief pattern",
+        "year": 2018
+      },
+      "base": "/images/opt/wall-2",
+      "original": "source-images/wall-2.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    },
+    {
+      "id": "wall-2-1",
+      "order": 1,
+      "caption": {
+        "holder": "Relief",
+        "desc": "Interior wall relief sculpture, detail view",
+        "year": 2018
+      },
+      "base": "/images/opt/wall-2-1",
+      "original": "source-images/wall-2-1.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    },
+    {
+      "id": "firepit",
+      "order": 2,
+      "caption": {
+        "holder": "Firepit",
+        "desc": "Lord of the Rings themed firepit",
+        "year": 2018
+      },
+      "base": "/images/opt/firepit",
+      "original": "source-images/firepit.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    },
+    {
+      "id": "platform",
+      "order": 3,
+      "caption": {
+        "holder": "Dive",
+        "desc": "Diving platform at private residence",
+        "year": 2018
+      },
+      "base": "/images/opt/platform",
+      "original": "source-images/platform.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    },
+    {
+      "id": "austin-wall",
+      "order": 4,
+      "caption": {
+        "holder": "Welchel Home",
+        "desc": "Large interior wall sculpture installation",
+        "year": 2020
+      },
+      "base": "/images/opt/austin-wall",
+      "original": "source-images/austin-wall.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    },
+    {
+      "id": "symbiosis-2",
+      "order": 5,
+      "caption": {
+        "holder": "Symbiosis",
+        "desc": "Symbiosis, outdoor public sculpture",
+        "year": 2018
+      },
+      "base": "/images/opt/symbiosis-2",
+      "original": "source-images/symbiosis-2.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    },
+    {
+      "id": "symbiosis",
+      "order": 6,
+      "caption": {
+        "holder": "Symbiosis",
+        "desc": "Symbiosis outdoor public sculpture, alternate view",
+        "year": 2018
+      },
+      "base": "/images/opt/symbiosis",
+      "original": "source-images/symbiosis.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    },
+    {
+      "id": "bench",
+      "order": 7,
+      "caption": {
+        "holder": "Bench",
+        "desc": "Custom outdoor sculptural bench",
+        "year": 2018
+      },
+      "base": "/images/opt/bench",
+      "original": "source-images/bench.png",
+      "edit": {
+        "brightness": 1,
+        "contrast": 1,
+        "crop": null,
+        "tilt": 0
+      }
+    }
+  ]
 }
