@@ -92,13 +92,7 @@ nav {
 }
 
 @media (max-width: 600px) {
-  .header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   nav {
-    align-self: flex-end;
     justify-content: flex-end;
   }
 
