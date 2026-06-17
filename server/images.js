@@ -1,4 +1,11 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import sharp from 'sharp'
+
+const execFileAsync = promisify(execFile)
 
 // Responsive widths + per-format encoder settings. These MUST stay identical to
 // scripts/optimize-images.mjs so the frontend's existing -450/-900.avif/webp/jpg
@@ -68,12 +75,79 @@ export function applyEdits(buffer, edit = {}) {
   return pipeline
 }
 
+// sharp's prebuilt libvips reads the HEIF *container* but cannot decode HEVC-
+// encoded HEIC pixels — the @img/sharp prebuilt omits the HEVC decoder (libde265)
+// for patent reasons. heif-convert (Debian libheif-examples + libde265, installed
+// in the Dockerfile) decodes it; we shell out and return the resulting PNG buffer
+// for the normal sharp pipeline. iPhone photos are HEVC HEIC, so this is the common
+// upload path.
+async function decodeHeicToPng(buffer) {
+  const dir = await mkdtemp(join(tmpdir(), 'cms-heic-'))
+  const inPath = join(dir, 'in.heic')
+  const outPath = join(dir, 'out.png')
+  try {
+    await writeFile(inPath, buffer)
+    await execFileAsync('heif-convert', [inPath, outPath])
+    return await readFile(outPath)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+// heif-convert applies the HEIF rotation to its output PIXELS (already upright) but
+// also copies a now-spurious EXIF orientation tag onto the PNG; sharp would re-apply
+// that tag and rotate the image sideways. Round-trip through raw pixels to drop all
+// orientation metadata, leaving the upright pixels as the source of truth. (sharp
+// reads the HEIC itself as upright with no orientation, so the dimensions stay
+// consistent with repo.js's crop-bounds check.)
+async function stripOrientation(buffer) {
+  const { data, info } = await sharp(buffer).raw().toBuffer({ resolveWithObject: true })
+  return sharp(data, {
+    raw: { width: info.width, height: info.height, channels: info.channels },
+  })
+    .png()
+    .toBuffer()
+}
+
+// Browsers can't render HEIC, so the editor can't load a .heic original into the
+// cropper. Transcode it to a full-resolution JPEG (decode HEVC + strip the spurious
+// orientation) — same pixel dimensions as the original, so the crop rectangle the
+// cropper captures stays in original-pixel space and still aligns with processing.
+export async function heicToDisplayJpeg(buffer) {
+  const upright = await stripOrientation(await decodeHeicToPng(buffer))
+  return sharp(upright).jpeg({ quality: 90 }).toBuffer()
+}
+
+// The stored original extension for an upload, detected from the BYTES (sharp
+// metadata) — never the browser-supplied MIME, which is unreliable for HEIC (often
+// labelled application/octet-stream). Returns null if sharp can't read it or the
+// format isn't one we accept (JPEG/PNG/WebP/HEIC, per the PRD).
+export async function detectExtension(buffer) {
+  let metadata
+  try {
+    metadata = await sharp(buffer).metadata()
+  } catch {
+    return null
+  }
+  // HEIF container: HEVC-compressed = iPhone .heic. AV1-compressed (AVIF) is not in
+  // the accepted upload set, so it falls through to null.
+  if (metadata.format === 'heif' && metadata.compression === 'hevc') return 'heic'
+  return { jpeg: 'jpg', png: 'png', webp: 'webp' }[metadata.format] ?? null
+}
+
 // Decode + validate the upload, then generate the full responsive variant set.
 // Returns the sharp metadata of the original plus the variant buffers; the caller
 // (repo.js) writes them. Throws if sharp cannot parse the input (not an image).
 export async function processImage(buffer, edit = {}) {
   const metadata = await sharp(buffer).metadata()
-  const master = applyEdits(buffer, edit)
+  // HEVC HEIC (iPhone): sharp can't decode the pixels — decode via libde265
+  // (heif-convert), then strip the spurious orientation tag it leaves behind so the
+  // already-upright pixels aren't rotated sideways. Other formats pass through.
+  const source =
+    metadata.format === 'heif' && metadata.compression === 'hevc'
+      ? await stripOrientation(await decodeHeicToPng(buffer))
+      : buffer
+  const master = applyEdits(source, edit)
 
   const variants = []
   for (const width of VARIANT_WIDTHS) {

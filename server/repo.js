@@ -215,6 +215,18 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
+  // A small, browser-displayable thumbnail for the admin list: the committed 450px
+  // JPEG variant from the working clone. Works for freshly-uploaded works too (their
+  // variants live in cms-draft before publish), and JPEG renders everywhere.
+  function readPreview(id) {
+    return serialize(async () => {
+      const gallery = await readGallery()
+      const work = gallery.works.find((w) => w.id === id)
+      if (!work) throw new WorkNotFoundError(id)
+      return readFile(join(workDir, OPT_DIR, `${id}-450.jpg`))
+    })
+  }
+
   // Reorder the gallery: `orderedIds` must be an exact permutation of the
   // current works' ids. Renumber each work's `order` to its index in that list
   // (0..n) so `order` is the single source of truth for sequence, then commit +
@@ -329,6 +341,7 @@ export function createRepo({ remoteUrl, workDir }) {
     addWork,
     updateEdit,
     readOriginal,
+    readPreview,
     reorderWorks,
     deleteWork,
     draftStatus,

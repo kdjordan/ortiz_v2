@@ -5,20 +5,10 @@ import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
 import { createRepo, WorkNotFoundError, InvalidEditError, InvalidReorderError } from './repo.js'
-import { processImage } from './images.js'
+import { processImage, detectExtension, heicToDisplayJpeg } from './images.js'
 
 const SESSION_COOKIE = 'session'
 const SESSION_VALUE = 'ok'
-
-// Accepted upload types -> the extension the pristine original is stored under.
-// HEIC stays .heic; sharp/libvips decodes it to generate the variants.
-const ACCEPTED_TYPES = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/heic': 'heic',
-  'image/heif': 'heic',
-}
 
 const DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
 
@@ -214,12 +204,27 @@ export function buildApp(opts = {}) {
       }
     })
 
-    // Serve a work's pristine original so the editor can load it into the cropper
-    // (the crop rect must be captured in original-pixel space).
+    // Serve a work's original for the editor's cropper (crop rect captured in
+    // original-pixel space). HEIC can't be rendered by browsers, so transcode it to
+    // a full-resolution JPEG (same dimensions, so coords still map to the original).
     routes.get('/api/works/:id/original', { preHandler: requireSession }, async (request, reply) => {
       try {
         const { buffer, ext } = await repo.readOriginal(request.params.id)
+        if (ext === 'heic') {
+          return reply.type('image/jpeg').send(await heicToDisplayJpeg(buffer))
+        }
         return reply.type(ORIGINAL_MIME[ext] ?? 'application/octet-stream').send(buffer)
+      } catch (err) {
+        if (err instanceof WorkNotFoundError) return reply.code(404).send({ error: 'work not found' })
+        throw err
+      }
+    })
+
+    // Serve a small JPEG thumbnail (the 450px variant) for the admin works list.
+    routes.get('/api/works/:id/preview', { preHandler: requireSession }, async (request, reply) => {
+      try {
+        const buffer = await repo.readPreview(request.params.id)
+        return reply.type('image/jpeg').send(buffer)
       } catch (err) {
         if (err instanceof WorkNotFoundError) return reply.code(404).send({ error: 'work not found' })
         throw err
@@ -230,13 +235,11 @@ export function buildApp(opts = {}) {
     // full responsive variant set + gallery record to cms-draft.
     routes.post('/api/works', { preHandler: requireSession }, async (request, reply) => {
       let fileBuffer
-      let mimetype
       const fields = {}
 
       try {
         for await (const part of request.parts()) {
           if (part.type === 'file') {
-            mimetype = part.mimetype
             // toBuffer() drains the stream; throws FST_REQ_FILE_TOO_LARGE if the
             // size cap is exceeded.
             fileBuffer = await part.toBuffer()
@@ -255,16 +258,18 @@ export function buildApp(opts = {}) {
         return reply.code(400).send({ error: 'file is required' })
       }
 
-      const ext = ACCEPTED_TYPES[mimetype]
+      // Detect the stored extension from the file's CONTENT, not the browser MIME
+      // (browsers mislabel HEIC, which would otherwise be wrongly rejected).
+      const ext = await detectExtension(fileBuffer)
       if (!ext) {
-        return reply.code(415).send({ error: 'unsupported file type' })
+        return reply.code(415).send({ error: 'unsupported or unreadable image' })
       }
 
       let processed
       try {
         processed = await processImage(fileBuffer)
       } catch {
-        // sharp could not decode it — treat as an unsupported/corrupt image.
+        // Decode/processing failed — treat as an unsupported/corrupt image.
         return reply.code(415).send({ error: 'could not read image' })
       }
 

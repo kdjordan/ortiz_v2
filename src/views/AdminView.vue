@@ -73,6 +73,12 @@
 					>
 						⠿ {{ work.order }}
 					</span>
+					<img
+						class="admin__thumb"
+						:src="`/api/works/${work.id}/preview`"
+						:alt="work.caption.holder"
+						loading="lazy"
+					/>
 					<input
 						v-model="work.caption.holder"
 						class="admin__field admin__holder"
@@ -673,11 +679,19 @@
 
 		&__works li {
 			display: grid;
-			grid-template-columns: 3rem 7rem 1fr 4rem auto auto auto;
+			grid-template-columns: 3rem 3rem 7rem 1fr 4rem auto auto auto;
 			gap: 0.6rem;
 			align-items: center;
 			padding: 0.6rem 0;
 			border-top: 1px solid var(--line);
+		}
+
+		&__thumb {
+			width: 3rem;
+			height: 3rem;
+			object-fit: cover;
+			border-radius: 4px;
+			background: rgba(255, 255, 255, 0.04);
 		}
 
 		&__row--dragging {
@@ -734,9 +748,12 @@
 			max-height: 60vh;
 			background: rgba(0, 0, 0, 0.35);
 
-			// Live brightness/contrast preview — filter only the image, not the crop
-			// handles/overlay. The backend reproduces this exact filter via sharp.
-			:deep(.vue-advanced-cropper__image) {
+			// Live brightness/contrast preview — filter both the faded background image
+			// AND the bright in-crop stencil preview (a separate element), so the whole
+			// image previews, not just outside the box. The backend reproduces this exact
+			// filter via sharp. (Not the crop handles/overlay.)
+			:deep(.vue-advanced-cropper__image),
+			:deep(.vue-preview__image) {
 				filter: var(--preview-filter, none);
 			}
 		}

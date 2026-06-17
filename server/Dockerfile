@@ -10,8 +10,15 @@ FROM node:22-bookworm-slim
 # openssh-client  — only used in Phase B, when the prod remote is an SSH URL pushed
 #            with a deploy key. A local file:// remote does NOT need it; it's
 #            installed here (~1MB) so the prod image needs no Dockerfile change.
+# libheif-examples (heif-convert) + libde265-0 — HEVC decoder for iPhone HEIC. The
+#            @img/sharp prebuilt bundles libheif but NOT the HEVC decoder (libde265,
+#            omitted for patent reasons), so it reads the HEIF container header but
+#            cannot decode HEVC pixels. images.js shells out to heif-convert for
+#            HEIC inputs. libde265-0 is listed explicitly so --no-install-recommends
+#            cannot drop it.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates openssh-client \
+  && apt-get install -y --no-install-recommends \
+       git ca-certificates openssh-client libheif-examples libde265-0 \
   && rm -rf /var/lib/apt/lists/*
 
 # simple-git invokes git inside the bind-mounted bare remote (file://). Git's
