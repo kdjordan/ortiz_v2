@@ -4,7 +4,7 @@ import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
-import { createRepo, WorkNotFoundError, InvalidEditError } from './repo.js'
+import { createRepo, WorkNotFoundError, InvalidEditError, InvalidReorderError } from './repo.js'
 import { processImage } from './images.js'
 
 const SESSION_COOKIE = 'session'
@@ -152,6 +152,22 @@ export function buildApp(opts = {}) {
       return { works: await repo.readWorks() }
     })
 
+    // Reorder works: body { ids } is the full id list in the new sequence. Renumbers
+    // the order fields (0..n) and commits to cms-draft. A bad id set -> 400.
+    routes.put('/api/works/order', { preHandler: requireSession }, async (request, reply) => {
+      const ids = request.body?.ids
+      if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string')) {
+        return reply.code(400).send({ error: 'ids must be an array of strings' })
+      }
+      try {
+        const works = await repo.reorderWorks(ids)
+        return { works }
+      } catch (err) {
+        if (err instanceof InvalidReorderError) return reply.code(400).send({ error: err.message })
+        throw err
+      }
+    })
+
     // Edit a work's caption -> commit to cms-draft (no deploy).
     routes.patch('/api/works/:id', { preHandler: requireSession }, async (request, reply) => {
       const invalid = validateCaption(request.body)
@@ -183,6 +199,17 @@ export function buildApp(opts = {}) {
       } catch (err) {
         if (err instanceof WorkNotFoundError) return reply.code(404).send({ error: 'work not found' })
         if (err instanceof InvalidEditError) return reply.code(400).send({ error: err.message })
+        throw err
+      }
+    })
+
+    // Delete a work: remove its files + gallery record -> commit to cms-draft.
+    routes.delete('/api/works/:id', { preHandler: requireSession }, async (request, reply) => {
+      try {
+        await repo.deleteWork(request.params.id)
+        return { ok: true }
+      } catch (err) {
+        if (err instanceof WorkNotFoundError) return reply.code(404).send({ error: 'work not found' })
         throw err
       }
     })

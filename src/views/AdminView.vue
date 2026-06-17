@@ -42,8 +42,22 @@
 				</label>
 			</div>
 			<ul>
-				<li v-for="work in works" :key="work.id">
-					<span class="admin__order">{{ work.order }}</span>
+				<li
+					v-for="(work, index) in works"
+					:key="work.id"
+					:class="{ 'admin__row--dragging': dragIndex === index }"
+					@dragover.prevent="onDragOver(index)"
+					@drop="onDrop(index)"
+				>
+					<span
+						class="admin__order"
+						draggable="true"
+						title="Drag to reorder"
+						@dragstart="onDragStart(index)"
+						@dragend="onDragEnd"
+					>
+						⠿ {{ work.order }}
+					</span>
 					<input
 						v-model="work.caption.holder"
 						class="admin__field admin__holder"
@@ -70,6 +84,14 @@
 					</button>
 					<button type="button" class="admin__save" @click="openEditor(work)">
 						Edit photo
+					</button>
+					<button
+						type="button"
+						class="admin__save admin__delete"
+						:disabled="deletingId === work.id"
+						@click="removeWork(work)"
+					>
+						{{ deletingId === work.id ? 'Deleting…' : 'Delete' }}
 					</button>
 				</li>
 			</ul>
@@ -146,6 +168,9 @@
 	const publishing = ref(false);
 	const publishMsg = ref('');
 	const uploading = ref(false);
+	const deletingId = ref('');
+	// Index of the row currently being dragged for reorder (-1 when idle).
+	const dragIndex = ref(-1);
 
 	// --- Crop + tilt editor (#6, re-edit #9) ---
 	// The cropper loads the pristine original so the crop rectangle it emits is in
@@ -284,8 +309,87 @@
 		if (res.status === 401) return false;
 		if (!res.ok) throw new Error(`Failed to load works (${res.status})`);
 		const body = await res.json();
-		works.value = body.works ?? [];
+		// `order` is the source of truth for sequence — sort by it so the admin list
+		// matches the published gallery.
+		works.value = (body.works ?? []).slice().sort((a, b) => a.order - b.order);
 		return true;
+	}
+
+	// --- Reorder (native HTML5 drag-and-drop) ---
+	// Drag the order handle to move a row; on drop we splice the works array into
+	// the new sequence and persist it, which renumbers the order fields on the draft.
+	function onDragStart(index) {
+		dragIndex.value = index;
+	}
+
+	function onDragOver() {
+		// Required so the row is a valid drop target (default is to reject the drop).
+	}
+
+	function onDragEnd() {
+		dragIndex.value = -1;
+	}
+
+	function onDrop(targetIndex) {
+		const from = dragIndex.value;
+		dragIndex.value = -1;
+		if (from === -1 || from === targetIndex) return;
+		const next = works.value.slice();
+		const [moved] = next.splice(from, 1);
+		next.splice(targetIndex, 0, moved);
+		works.value = next;
+		persistOrder();
+	}
+
+	// Persist the current row sequence to cms-draft; the server renumbers order
+	// fields and returns the updated works.
+	async function persistOrder() {
+		publishMsg.value = '';
+		try {
+			const res = await fetch('/api/works/order', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'same-origin',
+				body: JSON.stringify({ ids: works.value.map((w) => w.id) }),
+			});
+			if (!res.ok) {
+				publishMsg.value = 'Could not save the new order.';
+				await loadWorks();
+				return;
+			}
+			const body = await res.json();
+			works.value = body.works;
+			publishMsg.value = 'Order saved to draft.';
+		} catch {
+			publishMsg.value = 'Could not reach the server.';
+			await loadWorks();
+		}
+	}
+
+	// Delete a work (with a confirm step): removes its files + record from cms-draft.
+	async function removeWork(work) {
+		const ok = window.confirm(
+			`Delete “${work.caption.holder}”? This removes the photo and all its sizes from the draft. This cannot be undone.`,
+		);
+		if (!ok) return;
+		deletingId.value = work.id;
+		publishMsg.value = '';
+		try {
+			const res = await fetch(`/api/works/${work.id}`, {
+				method: 'DELETE',
+				credentials: 'same-origin',
+			});
+			if (!res.ok) {
+				publishMsg.value = 'Could not delete the work.';
+				return;
+			}
+			await loadWorks();
+			publishMsg.value = `Deleted “${work.caption.holder}” from the draft.`;
+		} catch {
+			publishMsg.value = 'Could not reach the server.';
+		} finally {
+			deletingId.value = '';
+		}
 	}
 
 	async function login() {
@@ -505,11 +609,15 @@
 
 		&__works li {
 			display: grid;
-			grid-template-columns: 2rem 8rem 1fr 5rem auto;
-			gap: 0.75rem;
+			grid-template-columns: 3rem 7rem 1fr 4rem auto auto auto;
+			gap: 0.6rem;
 			align-items: center;
 			padding: 0.6rem 0;
 			border-top: 1px solid var(--line);
+		}
+
+		&__row--dragging {
+			opacity: 0.4;
 		}
 
 		&__field {
@@ -523,6 +631,13 @@
 
 		&__order {
 			color: var(--ember);
+			cursor: grab;
+			user-select: none;
+			white-space: nowrap;
+
+			&:active {
+				cursor: grabbing;
+			}
 		}
 
 		&__year {
@@ -531,6 +646,11 @@
 
 		&__save {
 			padding: 0.4rem 0.75rem;
+		}
+
+		&__delete {
+			color: var(--ember);
+			border-color: var(--ember);
 		}
 
 		&__editor {

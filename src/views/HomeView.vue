@@ -63,13 +63,17 @@
 
 	// Flatten each work's caption onto the work so the template keeps using
 	// img.base / img.holder / img.desc / img.year (index = stable render order).
-	const images = gallery.works.map((work) => ({
-		index: work.order,
-		base: work.base,
-		holder: work.caption.holder,
-		desc: work.caption.desc,
-		year: work.caption.year,
-	}));
+	// `order` is the single source of truth for sequence (set by the admin CMS), so
+	// sort by it rather than trusting the array order.
+	const images = [...gallery.works]
+		.sort((a, b) => a.order - b.order)
+		.map((work) => ({
+			index: work.order,
+			base: work.base,
+			holder: work.caption.holder,
+			desc: work.caption.desc,
+			year: work.caption.year,
+		}));
 
 	useHead({
 		title: 'Ortiz Metals — Custom Sculpture & Metalwork | Randy Ortiz, Eugene OR',

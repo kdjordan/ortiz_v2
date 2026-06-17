@@ -32,6 +32,15 @@ export class InvalidEditError extends Error {
   }
 }
 
+// Thrown by reorderWorks when the supplied id list isn't a permutation of the
+// gallery's ids (missing, extra, duplicated, or unknown); maps to a 400.
+export class InvalidReorderError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'InvalidReorderError'
+  }
+}
+
 // Is the crop rectangle fully inside the rotated bounding box? The cropper sizes
 // its canvas by truncating the float bbox, so floor() is the authoritative bound
 // (sharp's rotated canvas ceils, i.e. is never smaller — so a crop valid here
@@ -206,6 +215,62 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
+  // Reorder the gallery: `orderedIds` must be an exact permutation of the
+  // current works' ids. Renumber each work's `order` to its index in that list
+  // (0..n) so `order` is the single source of truth for sequence, then commit +
+  // push to cms-draft. Returns the works in the new order.
+  function reorderWorks(orderedIds) {
+    return serialize(async () => {
+      const gallery = await readGallery()
+      const current = gallery.works.map((w) => w.id)
+
+      const sameSet =
+        Array.isArray(orderedIds) &&
+        orderedIds.length === current.length &&
+        new Set(orderedIds).size === orderedIds.length &&
+        orderedIds.every((id) => current.includes(id))
+      if (!sameSet) throw new InvalidReorderError('ids must be a permutation of the gallery ids')
+
+      const rank = new Map(orderedIds.map((id, i) => [id, i]))
+      for (const work of gallery.works) work.order = rank.get(work.id)
+      gallery.works.sort((a, b) => a.order - b.order)
+
+      await writeFile(galleryFile(), `${JSON.stringify(gallery, null, 2)}\n`)
+      await git.add(GALLERY_REL)
+      await git.commit('CMS: reorder works')
+      await git.push(['origin', DRAFT_BRANCH])
+      return gallery.works
+    })
+  }
+
+  // Delete a work: remove its pristine original + all six responsive variants +
+  // its gallery record, then commit + push the deletions to cms-draft. Unknown id
+  // -> WorkNotFoundError (404). Order fields of the remaining works are left as-is
+  // (gaps are harmless: sequence is read by `order`, not array index).
+  function deleteWork(id) {
+    return serialize(async () => {
+      const gallery = await readGallery()
+      const work = gallery.works.find((w) => w.id === id)
+      if (!work) throw new WorkNotFoundError(id)
+
+      // force: a variant file may be absent (e.g. partially-written); don't fail.
+      await rm(join(workDir, work.original), { force: true })
+      for (const width of [450, 900]) {
+        for (const ext of ['avif', 'webp', 'jpg']) {
+          await rm(join(workDir, OPT_DIR, `${id}-${width}.${ext}`), { force: true })
+        }
+      }
+
+      gallery.works = gallery.works.filter((w) => w.id !== id)
+      await writeFile(galleryFile(), `${JSON.stringify(gallery, null, 2)}\n`)
+
+      // -A stages the file removals as well as the gallery.json change.
+      await git.add(['-A'])
+      await git.commit(`CMS: delete work ${id}`)
+      await git.push(['origin', DRAFT_BRANCH])
+    })
+  }
+
   // Promote draft to live: rebase draft onto the latest main (safety against
   // out-of-band dev commits), then fast-forward main to draft and push.
   function publish() {
@@ -227,5 +292,15 @@ export function createRepo({ remoteUrl, workDir }) {
     })
   }
 
-  return { init, readWorks, updateCaption, addWork, updateEdit, readOriginal, publish }
+  return {
+    init,
+    readWorks,
+    updateCaption,
+    addWork,
+    updateEdit,
+    readOriginal,
+    reorderWorks,
+    deleteWork,
+    publish,
+  }
 }
