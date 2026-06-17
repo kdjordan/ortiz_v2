@@ -54,4 +54,8 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3001/api/works').then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"
 
+# Entrypoint sets up the SSH deploy key when DEPLOY_KEY is present (prod); it's a
+# no-op for the local file:// smoke, so `node server.js` runs unchanged there.
+RUN chmod +x docker-entrypoint.sh
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]
