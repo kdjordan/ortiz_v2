@@ -83,6 +83,7 @@
 						class="admin__cropper"
 						:src="editorSrc"
 						:canvas="false"
+						@ready="onCropperReady"
 						@change="onCropChange"
 					/>
 				</div>
@@ -132,7 +133,7 @@
 </template>
 
 <script setup>
-	import { computed, onMounted, ref } from 'vue';
+	import { computed, nextTick, onMounted, ref } from 'vue';
 	import { Cropper } from 'vue-advanced-cropper';
 	import 'vue-advanced-cropper/dist/style.css';
 
@@ -146,7 +147,7 @@
 	const publishMsg = ref('');
 	const uploading = ref(false);
 
-	// --- Crop + tilt editor (#6) ---
+	// --- Crop + tilt editor (#6, re-edit #9) ---
 	// The cropper loads the pristine original so the crop rectangle it emits is in
 	// original-pixel space. Convention: tilt (rotate) then crop — the same order the
 	// server's applyEdits uses — so this preview reproduces the saved result.
@@ -168,27 +169,63 @@
 	let appliedTilt = 0;
 	// Latest crop rectangle from the cropper, in rotated-image pixel coordinates.
 	let cropCoords = null;
+	// The work's stored crop, replayed into the cropper once it's ready (#9).
+	let storedCrop = null;
+	// While replaying a stored edit, ignore the cropper's auto-fit @change events so
+	// a re-opened "no crop" work isn't fabricated into the default 80% stencil.
+	let initializing = false;
 
+	// Open the editor on a work, rehydrating every control from its stored params so
+	// adjustments continue non-destructively from the pristine original (#9). tilt +
+	// crop need the loaded image's dimensions, so they're replayed in onCropperReady.
 	function openEditor(work) {
 		editingId.value = work.id;
-		tilt.value = 0;
+		const edit = work.edit ?? {};
+		tilt.value = edit.tilt ?? 0;
 		appliedTilt = 0;
-		brightness.value = 1;
-		contrast.value = 1;
-		cropCoords = null;
+		brightness.value = edit.brightness ?? 1;
+		contrast.value = edit.contrast ?? 1;
+		storedCrop = edit.crop ?? null;
+		cropCoords = storedCrop;
+		initializing = true;
 		// Same-origin (via the dev proxy); a fresh Cropper mounts per work (keyed).
 		editorSrc.value = `/api/works/${work.id}/original`;
+	}
+
+	// Replay the stored edit into the freshly-loaded cropper in the #6 rotated-bbox
+	// convention: rotate to the stored tilt first, then restore the crop rectangle
+	// (which was captured in that post-rotation space, so it sets back directly).
+	// Transitions off -> the restore is instant and deterministic, not animated.
+	function onCropperReady() {
+		if (tilt.value) {
+			cropperRef.value.rotate(tilt.value, { transitions: false });
+			appliedTilt = tilt.value;
+		}
+		if (storedCrop) {
+			cropperRef.value.setCoordinates(
+				{ left: storedCrop.x, top: storedCrop.y, width: storedCrop.w, height: storedCrop.h },
+				{ transitions: false },
+			);
+		}
+		// setCoordinates applies on the next tick; resume honouring change events only
+		// after that so the replay isn't mistaken for a user-driven crop.
+		nextTick(() => {
+			initializing = false;
+		});
 	}
 
 	function closeEditor() {
 		editingId.value = '';
 		editorSrc.value = '';
 		cropCoords = null;
+		storedCrop = null;
+		initializing = false;
 	}
 
 	// vue-advanced-cropper emits coordinates {left, top, width, height} in the
 	// rotated image's pixel space — exactly what the server extracts after rotating.
 	function onCropChange({ coordinates }) {
+		if (initializing) return;
 		cropCoords = coordinates;
 	}
 

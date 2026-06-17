@@ -419,3 +419,70 @@ describe('fetch original for editing', () => {
     expect(res.statusCode).toBe(404)
   })
 })
+
+// #9 re-edit: reopening a work rehydrates its stored params and re-saves from the
+// pristine original. These prove the round-trip is faithful at the byte level — the
+// frontend rehydration is correct only because the server always re-derives from
+// the original (never a prior render), which is what these assert.
+describe('re-edit (rehydrate -> save) reprocesses faithfully from the original', () => {
+  const VARIANTS = [
+    [450, 'avif'], [450, 'webp'], [450, 'jpg'],
+    [900, 'avif'], [900, 'webp'], [900, 'jpg'],
+  ]
+
+  function variantBuffer(bareDir, id, width, ext) {
+    return showBuffer(bareDir, 'cms-draft', `public/images/opt/${id}-${width}.${ext}`)
+  }
+
+  it('applying P1 then P2 equals applying P2 once to the pristine original (no compounding)', async () => {
+    app = await makeApp()
+    const cookies = await authedCookie()
+    const { bareDir } = app.testCtx
+
+    // Two works with byte-identical originals (testImage is deterministic), so any
+    // difference in their variants can only come from a difference in processing.
+    const a = await uploadWork(cookies)
+    const b = await uploadWork(cookies)
+
+    const P1 = { brightness: 1.3, contrast: 1.1, crop: { x: 100, y: 50, w: 600, h: 400 }, tilt: 6 }
+    const P2 = { brightness: 1.1, contrast: 0.9, crop: { x: 50, y: 50, w: 700, h: 300 }, tilt: 3 }
+
+    // a: P1 then re-edit to P2. b: P2 once, straight onto the untouched original.
+    await app.inject({ method: 'PUT', url: `/api/works/${a.id}/edit`, cookies, payload: P1 })
+    await app.inject({ method: 'PUT', url: `/api/works/${a.id}/edit`, cookies, payload: P2 })
+    await app.inject({ method: 'PUT', url: `/api/works/${b.id}/edit`, cookies, payload: P2 })
+
+    // Every variant must match: re-editing never compounds on the prior render.
+    for (const [w, ext] of VARIANTS) {
+      const reEdited = await variantBuffer(bareDir, a.id, w, ext)
+      const direct = await variantBuffer(bareDir, b.id, w, ext)
+      expect(Buffer.compare(reEdited, direct), `${w}.${ext}`).toBe(0)
+    }
+  })
+
+  it('re-saving the same non-identity params (rehydrate round-trip) yields byte-identical variants', async () => {
+    app = await makeApp()
+    const cookies = await authedCookie()
+    const { bareDir } = app.testCtx
+    const { id } = await uploadWork(cookies)
+
+    // tilt + crop + brightness + contrast all non-identity — the rehydration path.
+    const P = { brightness: 1.2, contrast: 1.15, crop: { x: 120, y: 80, w: 800, h: 500 }, tilt: 7 }
+
+    await app.inject({ method: 'PUT', url: `/api/works/${id}/edit`, cookies, payload: P })
+    const first = {}
+    for (const [w, ext] of VARIANTS) {
+      first[`${w}.${ext}`] = await variantBuffer(bareDir, id, w, ext)
+    }
+
+    // Reopen -> the editor rehydrates P -> save the identical params again.
+    const res = await app.inject({ method: 'PUT', url: `/api/works/${id}/edit`, cookies, payload: P })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().work.edit).toEqual(P)
+
+    for (const [w, ext] of VARIANTS) {
+      const again = await variantBuffer(bareDir, id, w, ext)
+      expect(Buffer.compare(first[`${w}.${ext}`], again), `${w}.${ext}`).toBe(0)
+    }
+  })
+})
