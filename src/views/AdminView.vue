@@ -1,5 +1,9 @@
 <template>
 	<div class="admin">
+		<!-- TEMP DEBUG panel (remove after the Windows cookie issue is found): renders
+		     the [CMS-DEBUG] lines on the page so they're readable without DevTools. -->
+		<pre class="admin__debug">CMS-DEBUG
+{{ debugLines.join('\n') }}</pre>
 		<!-- Login -->
 		<form v-if="!authed" class="admin__login" @submit.prevent="login">
 			<p class="admin__brand">Ortiz Metals · Admin</p>
@@ -168,6 +172,7 @@
 						<div class="admin__editor-main">
 							<div class="admin__editor-stage" :style="{ '--preview-filter': previewFilter }">
 								<Cropper
+									v-if="!imageError"
 									:key="editingId + ':' + aspect"
 									ref="cropperRef"
 									class="admin__cropper"
@@ -178,12 +183,14 @@
 									:resize-image="{ wheel: true, touch: true }"
 									image-restriction="stencil"
 									@ready="onCropperReady"
+									@error="onCropperError"
 									@change="onCropChange"
 								/>
 								<div v-if="loadingImage" class="admin__editor-loading">
 									<span class="admin__spinner" aria-hidden="true"></span>
 									<span>Rendering preview…</span>
 								</div>
+								<div v-if="imageError" class="admin__editor-error">{{ imageError }}</div>
 							</div>
 							<p class="admin__editor-hint">
 								Drag the photo to position · scroll to zoom · the frame is exactly what publishes
@@ -342,6 +349,10 @@
 	// True from when an image src is assigned until the cropper reports it loaded —
 	// HEIC works transcode to JPEG server-side, so the stage would otherwise sit blank.
 	const loadingImage = ref(false);
+	// Set when the cropper can't load a work's original (the <img> errors). Holds a
+	// human message incl. the HTTP status, and (via v-if) unmounts the cropper so a
+	// later resize can't re-read its detached image ref and crash on naturalHeight.
+	const imageError = ref('');
 	const cropperRef = ref(null);
 	// The cropper's rotate() is relative; track the applied angle so a slider move
 	// only rotates by the delta to reach the new absolute straighten angle.
@@ -478,6 +489,7 @@
 		storedCrop = edit.crop ?? null;
 		cropCoords = storedCrop;
 		cropResult.value = null; // drop the prior work's live preview until this one is ready
+		imageError.value = ''; // clear any prior load failure so the cropper re-mounts
 		initializing = true;
 		loadingImage.value = true;
 		editorSrc.value = `/api/works/${work.id}/original`;
@@ -501,6 +513,25 @@
 		nextTick(() => {
 			initializing = false;
 		});
+	}
+
+	// The cropper's <img> failed to load the work's original. Refetch it to learn the
+	// real HTTP status (the @error event carries none) and surface it — a 401 here is
+	// the session cookie not reaching the API, the usual cause of this whole failure.
+	async function onCropperError() {
+		loadingImage.value = false;
+		dbg('cropper image FAILED to load:', editorSrc.value, '| refetching to read status…');
+		let detail = '';
+		try {
+			const res = await fetch(editorSrc.value, { credentials: 'same-origin' });
+			dbg('GET', editorSrc.value, '->', res.status, '| document.cookie =', JSON.stringify(document.cookie));
+			detail = ` Server returned ${res.status}.`;
+			if (res.status === 401) detail += ' Your session likely expired — log out and back in.';
+		} catch (err) {
+			dbg('refetch threw (network):', err?.message ?? err);
+			detail = ' Could not reach the server.';
+		}
+		imageError.value = `Couldn't load this image.${detail}`;
 	}
 
 	// vue-advanced-cropper emits coordinates {left, top, width, height} in the
@@ -571,9 +602,19 @@
 		}
 	}
 
+	// TEMP DEBUG (remove after the Windows cookie issue is found): logs to the console
+	// AND to an on-page panel, so it's readable without DevTools / console filters.
+	const debugLines = ref([]);
+	function dbg(...args) {
+		const line = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+		debugLines.value.push(line);
+		console.log('[CMS-DEBUG]', ...args);
+	}
+
 	// Fetch the works list; returns true if the session is valid (200), false on 401.
 	async function loadWorks() {
 		const res = await fetch('/api/works', { credentials: 'same-origin' });
+		dbg('GET /api/works ->', res.status, '| document.cookie =', JSON.stringify(document.cookie));
 		if (res.status === 401) return false;
 		if (!res.ok) throw new Error(`Failed to load works (${res.status})`);
 		const body = await res.json();
@@ -705,6 +746,7 @@
 				credentials: 'same-origin',
 				body: JSON.stringify({ password: password.value }),
 			});
+			dbg('POST /api/login ->', res.status, '| set-cookie visible to JS?', document.cookie.includes('session'));
 			if (res.status === 429) {
 				error.value = 'Too many attempts. Please wait and try again.';
 				return;
@@ -761,6 +803,7 @@
 				credentials: 'same-origin',
 				body: form,
 			});
+			dbg('POST /api/works (upload) ->', res.status, '| file:', file.name, file.type || '(no type)', file.size, 'bytes');
 			if (res.status === 413) {
 				publishMsg.value = 'That file is too large (max 25 MB).';
 				return;
@@ -814,6 +857,7 @@
 
 	// On load, reuse an existing session if the cookie is still valid.
 	onMounted(async () => {
+		dbg('env | href =', location.href, '| protocol =', location.protocol, '| host =', location.host, '| UA =', navigator.userAgent);
 		try {
 			authed.value = await loadWorks();
 		} catch {
@@ -1236,6 +1280,39 @@
 			background: rgba(0, 0, 0, 0.35);
 			font-size: 0.85rem;
 			opacity: 0.85;
+		}
+
+		// TEMP DEBUG panel — remove with the dbg()/debugLines plumbing.
+		&__debug {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			z-index: 9999;
+			max-height: 45vh;
+			overflow: auto;
+			margin: 0;
+			padding: 0.5rem 0.75rem;
+			background: rgba(0, 0, 0, 0.85);
+			color: #7CFC9A;
+			font-family: ui-monospace, monospace;
+			font-size: 0.72rem;
+			line-height: 1.35;
+			white-space: pre-wrap;
+			word-break: break-all;
+		}
+
+		&__editor-error {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 1.5rem;
+			text-align: center;
+			background: rgba(0, 0, 0, 0.35);
+			font-size: 0.9rem;
+			color: var(--ember);
 		}
 
 		&__spinner {
