@@ -1283,13 +1283,16 @@
 		}
 
 		// TEMP DEBUG panel — remove with the dbg()/debugLines plumbing.
+		// Pinned top-right with a capped width so the left works rail + upload button
+		// stay clickable.
 		&__debug {
 			position: fixed;
 			top: 0;
-			left: 0;
 			right: 0;
+			left: auto;
+			width: min(92vw, 540px);
 			z-index: 9999;
-			max-height: 45vh;
+			max-height: 60vh;
 			overflow: auto;
 			margin: 0;
 			padding: 0.5rem 0.75rem;
