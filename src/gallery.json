@@ -140,23 +140,6 @@
         "crop": null,
         "tilt": 0
       }
-    },
-    {
-      "id": "1c0e6f0a-d24d-4e96-be04-1f86d984d290",
-      "order": 8,
-      "caption": {
-        "holder": "Untitled",
-        "desc": "",
-        "year": 2026
-      },
-      "base": "/images/opt/1c0e6f0a-d24d-4e96-be04-1f86d984d290",
-      "original": "source-images/1c0e6f0a-d24d-4e96-be04-1f86d984d290.jpg",
-      "edit": {
-        "brightness": 1,
-        "contrast": 1,
-        "crop": null,
-        "tilt": 0
-      }
     }
   ]
 }
