@@ -1,9 +1,5 @@
 <template>
 	<div class="admin">
-		<!-- TEMP DEBUG panel (remove after the Windows cookie issue is found): renders
-		     the [CMS-DEBUG] lines on the page so they're readable without DevTools. -->
-		<pre class="admin__debug">CMS-DEBUG
-{{ debugLines.join('\n') }}</pre>
 		<!-- Login -->
 		<form v-if="!authed" class="admin__login" @submit.prevent="login">
 			<p class="admin__brand">Ortiz Metals · Admin</p>
@@ -520,15 +516,12 @@
 	// the session cookie not reaching the API, the usual cause of this whole failure.
 	async function onCropperError() {
 		loadingImage.value = false;
-		dbg('cropper image FAILED to load:', editorSrc.value, '| refetching to read status…');
 		let detail = '';
 		try {
 			const res = await fetch(editorSrc.value, { credentials: 'same-origin' });
-			dbg('GET', editorSrc.value, '->', res.status, '| document.cookie =', JSON.stringify(document.cookie));
 			detail = ` Server returned ${res.status}.`;
 			if (res.status === 401) detail += ' Your session likely expired — log out and back in.';
-		} catch (err) {
-			dbg('refetch threw (network):', err?.message ?? err);
+		} catch {
 			detail = ' Could not reach the server.';
 		}
 		imageError.value = `Couldn't load this image.${detail}`;
@@ -602,19 +595,9 @@
 		}
 	}
 
-	// TEMP DEBUG (remove after the Windows cookie issue is found): logs to the console
-	// AND to an on-page panel, so it's readable without DevTools / console filters.
-	const debugLines = ref([]);
-	function dbg(...args) {
-		const line = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
-		debugLines.value.push(line);
-		console.log('[CMS-DEBUG]', ...args);
-	}
-
 	// Fetch the works list; returns true if the session is valid (200), false on 401.
 	async function loadWorks() {
 		const res = await fetch('/api/works', { credentials: 'same-origin' });
-		dbg('GET /api/works ->', res.status, '| document.cookie =', JSON.stringify(document.cookie));
 		if (res.status === 401) return false;
 		if (!res.ok) throw new Error(`Failed to load works (${res.status})`);
 		const body = await res.json();
@@ -746,7 +729,6 @@
 				credentials: 'same-origin',
 				body: JSON.stringify({ password: password.value }),
 			});
-			dbg('POST /api/login ->', res.status, '| set-cookie visible to JS?', document.cookie.includes('session'));
 			if (res.status === 429) {
 				error.value = 'Too many attempts. Please wait and try again.';
 				return;
@@ -803,7 +785,6 @@
 				credentials: 'same-origin',
 				body: form,
 			});
-			dbg('POST /api/works (upload) ->', res.status, '| file:', file.name, file.type || '(no type)', file.size, 'bytes');
 			if (res.status === 413) {
 				publishMsg.value = 'That file is too large (max 25 MB).';
 				return;
@@ -857,7 +838,6 @@
 
 	// On load, reuse an existing session if the cookie is still valid.
 	onMounted(async () => {
-		dbg('env | href =', location.href, '| protocol =', location.protocol, '| host =', location.host, '| UA =', navigator.userAgent);
 		try {
 			authed.value = await loadWorks();
 		} catch {
@@ -1280,29 +1260,6 @@
 			background: rgba(0, 0, 0, 0.35);
 			font-size: 0.85rem;
 			opacity: 0.85;
-		}
-
-		// TEMP DEBUG panel — remove with the dbg()/debugLines plumbing.
-		// Pinned top-right with a capped width so the left works rail + upload button
-		// stay clickable.
-		&__debug {
-			position: fixed;
-			top: 0;
-			right: 0;
-			left: auto;
-			width: min(92vw, 540px);
-			z-index: 9999;
-			max-height: 60vh;
-			overflow: auto;
-			margin: 0;
-			padding: 0.5rem 0.75rem;
-			background: rgba(0, 0, 0, 0.85);
-			color: #7CFC9A;
-			font-family: ui-monospace, monospace;
-			font-size: 0.72rem;
-			line-height: 1.35;
-			white-space: pre-wrap;
-			word-break: break-all;
 		}
 
 		&__editor-error {
