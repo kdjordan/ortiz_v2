@@ -61,11 +61,17 @@
 	import gsap from 'gsap';
 	import gallery from '@/gallery.json';
 
+	// The 8 fixed homepage spots (AdminView's `homeZones`). Works at order 0–7 fill
+	// those spots; anything at order ≥ 8 is "Unplaced" in the CMS and stays off the
+	// home page until it's assigned a spot.
+	const HOME_SPOTS = 8;
+
 	// Flatten each work's caption onto the work so the template keeps using
 	// img.base / img.holder / img.desc / img.year (index = stable render order).
 	// `order` is the single source of truth for sequence (set by the admin CMS), so
 	// sort by it rather than trusting the array order.
 	const images = [...gallery.works]
+		.filter((work) => work.order < HOME_SPOTS)
 		.sort((a, b) => a.order - b.order)
 		.map((work) => ({
 			index: work.order,
