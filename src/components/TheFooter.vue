@@ -12,9 +12,7 @@
           <div>
               &#169; {{ year }} Ortiz Metals
           </div>
-          <div>
-              <a href="https://www.kevinjordan.dev" target="_blank" rel="noopener noreferrer nofollow">BUILT BY : Kevin Jordan</a>
-          </div>
+          <div><a href="https://www.kevinjordan.dev" target="_blank" rel="noopener noreferrer nofollow">BUILT BY : Kevin Jordan</a></div>
       </div>    
   </div>
 </template>
@@ -51,7 +49,13 @@ a {
   }
 
   &__right {
-      text-align: left;
+      text-align: right;
+
+      // The global `a { margin: 0 1rem }` (base.css) adds a 16px right margin that
+      // pushes the link off the right edge; zero it so both lines align flush right.
+      a {
+          margin-right: 0;
+      }
   }
 }
 

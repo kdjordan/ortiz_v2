@@ -122,21 +122,30 @@
 
 	function select(i) {
 		if (i === featureIndex.value) return;
+		if (drift) drift.kill();
 		featureIndex.value = i;
-		nextTick(() => {
-			if (drift) drift.kill();
-			if (featureImg.value) {
-				gsap.fromTo(
-					featureImg.value,
-					{ clipPath: 'inset(0 0 0 100%)', scale: 1.12 },
-					{
-						clipPath: 'inset(0 0 0 0%)',
-						scale: 1,
-						duration: 0.8,
-						ease: 'power4.out',
-						onComplete: startDrift,
-					}
-				);
+		nextTick(async () => {
+			const el = featureImg.value;
+			if (el) {
+				// The <img> is reused across selections, so set the wipe's clipped/over-
+				// scaled start state synchronously — that hides the previous image the
+				// instant the src swaps. Then wait for the NEW source to decode before
+				// wiping it in; otherwise the reveal paints the stale image first and the
+				// new one pops in over it (the double-render flash).
+				gsap.set(el, { clipPath: 'inset(0 0 0 100%)', scale: 1.12 });
+				try {
+					await el.decode();
+				} catch {
+					// decode() can reject (e.g. an incomplete/aborted image) — reveal anyway
+					// rather than leaving the box stuck hidden.
+				}
+				gsap.to(el, {
+					clipPath: 'inset(0 0 0 0%)',
+					scale: 1,
+					duration: 0.8,
+					ease: 'power4.out',
+					onComplete: startDrift,
+				});
 			}
 			// On mobile the feature sits above the tiles — bring the swapped work into view.
 			if (window.matchMedia('(max-width: 820px)').matches && featureEl.value) {
